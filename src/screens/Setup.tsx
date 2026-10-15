@@ -68,7 +68,17 @@ export function Setup({ onCreate }: { onCreate: (m: Match) => void }) {
     try {
       const roster = await fetchRoster(competitionId, cvfTeam.id);
       if (roster.length) {
-        setRows(toRows(roster));
+        // cvf.cz často nemá čísla dresů – doplní se z dříve uložené soupisky (podle jména).
+        const saved = savedRosters.find((r) => r.team === name)?.players ?? [];
+        const known = new Map(saved.map((p) => [p.name.toLowerCase(), p]));
+        setRows(
+          toRows(
+            roster.map((p) => {
+              const s = known.get(p.name.toLowerCase());
+              return s ? { ...p, number: p.number || s.number, libero: p.libero ?? s.libero } : p;
+            }),
+          ),
+        );
         setStatus({ tone: 'ok', text: `Načteno ${roster.length} hráčů z cvf.cz. Doplňte čísla dresů a odškrtněte, kdo nehraje.` });
       } else {
         fallbackToSaved(name, 'Soupisku se na cvf.cz nepodařilo najít.');

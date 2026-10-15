@@ -70,12 +70,12 @@ const STAFF_RE = /trenér|vedoucí|asistent|lékař|fyzio|masér|statistik/i;
 const NUMBER_RE = /^\d{1,2}$/;
 const NAME_RE = /^[\p{Lu}][\p{L}'’.-]*(?:\s+[\p{Lu}][\p{L}'’.-]*){1,3}$/u;
 
-/** Převede buňky jednoho řádku tabulky na hráče; `strict` vyžaduje jméno ve tvaru „Příjmení Jméno“. */
-function rowToPlayer(cells: string[], strict: boolean): RosterEntry | null {
+/** Převede buňky jednoho řádku (zkopírovaného z tabulky) na hráče. */
+function rowToPlayer(cells: string[]): RosterEntry | null {
   const row = cells.join(' ');
-  if (STAFF_RE.test(row) || /\d+\s*:\s*\d+/.test(row)) return null;
+  if (STAFF_RE.test(row)) return null;
   const names = cells.map((c) => clean(c.replace(LIBERO_RE, ''))).filter((c) => /\p{L}/u.test(c));
-  const name = names.find((c) => NAME_RE.test(c)) ?? (strict ? undefined : names[0]);
+  const name = names.find((c) => NAME_RE.test(c)) ?? names[0];
   if (!name) return null;
   return { number: cells.find((c) => NUMBER_RE.test(c)) ?? '', name, libero: LIBERO_RE.test(row) || undefined };
 }
@@ -87,22 +87,24 @@ function uniqueByName(list: (RosterEntry | null)[]): RosterEntry[] {
 }
 
 /**
- * Vytáhne soupisku ze stránky družstva. Hledá tabulku s hlavičkou „jméno/hráč“,
- * jinak vezme tabulku s nejvíce řádky ve tvaru jména hráče.
+ * Soupiska ze stránky družstva na cvf.cz: záložka #lineup, karty a.playerItem
+ * (číslo v .playerItem__num, jméno v h3, post v .fw-bold). Sekci „Trenéři/funkcionáři“ vynechá.
  */
 export function parseRoster(html: string): RosterEntry[] {
   const doc = new DOMParser().parseFromString(html, 'text/html');
-  const tables = [...doc.querySelectorAll('table')];
-  const fromTable = (t: HTMLTableElement) =>
-    uniqueByName(
-      [...t.querySelectorAll('tr')].map((tr) =>
-        rowToPlayer([...tr.querySelectorAll('td')].map((td) => clean(td.textContent)), true),
-      ),
-    );
-
-  const withHeader = tables.filter((t) => /jméno|příjmení|hráč/i.test(clean(t.querySelector('thead, tr')?.textContent)));
-  if (withHeader.length) return uniqueByName(withHeader.flatMap(fromTable));
-  return tables.map(fromTable).reduce<RosterEntry[]>((best, cur) => (cur.length > best.length ? cur : best), []);
+  const root = doc.querySelector('#lineup') ?? doc;
+  return uniqueByName(
+    [...root.querySelectorAll('a.playerItem')].map((card) => {
+      const section = clean(card.closest('.row')?.previousElementSibling?.textContent);
+      const name = clean(card.querySelector('h3')?.textContent);
+      if (!name || STAFF_RE.test(section) || /funkcionář/i.test(section)) return null;
+      return {
+        number: clean(card.querySelector('.playerItem__num')?.textContent),
+        name,
+        libero: /libero/i.test(clean(card.querySelector('.fw-bold')?.textContent)) || undefined,
+      };
+    }),
+  );
 }
 
 /** Ručně vložená soupiska: jeden hráč na řádek, např. „7 Novák Jan“, „Novák Jan 7“ nebo řádek zkopírovaný z tabulky. */
@@ -110,7 +112,7 @@ export function parseRosterText(text: string): RosterEntry[] {
   return uniqueByName(
     text.split(/\r?\n/).map((line) => {
       const cells = line.split('\t').map(clean).filter(Boolean);
-      if (cells.length > 1) return rowToPlayer(cells, false);
+      if (cells.length > 1) return rowToPlayer(cells);
       const libero = LIBERO_RE.test(line) || undefined;
       const s = clean(line.replace(LIBERO_RE, ''));
       const lead = s.match(/^#?(\d{1,2})[.):\s-]+(.+)$/);
