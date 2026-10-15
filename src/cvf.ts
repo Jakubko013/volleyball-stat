@@ -1,0 +1,122 @@
+import type { Player } from './types';
+
+const CVF_ORIGIN = 'https://www.cvf.cz';
+const COMPETITION_PATH = '/souteze/celostatni-souteze';
+
+declare global {
+  interface Window {
+    /** Most z Electronu (electron/preload.cjs) – stahuje bez omezení CORS. */
+    electronAPI?: { fetchText(url: string): Promise<string> };
+    /** Vkládá Capacitor v nativní aplikaci; fetch pak jde přes nativní HTTP. */
+    Capacitor?: { isNativePlatform?: () => boolean };
+  }
+}
+
+export type RosterEntry = Omit<Player, 'id'>;
+
+export interface CvfTeam {
+  id: string;
+  name: string;
+}
+
+async function fetchCvf(query: string): Promise<string> {
+  const path = `${COMPETITION_PATH}?${query}`;
+  if (window.electronAPI) return window.electronAPI.fetchText(CVF_ORIGIN + path);
+
+  // Web nemůže cvf.cz volat přímo (CORS) – jde přes proxy /cvf (Vite dev server, Netlify) nebo VITE_CVF_PROXY.
+  const base = window.Capacitor?.isNativePlatform?.() ? CVF_ORIGIN : (import.meta.env.VITE_CVF_PROXY ?? '/cvf');
+  const res = await fetch(base + path);
+  if (!res.ok) throw new Error(`cvf.cz vrátil chybu ${res.status}`);
+  return res.text();
+}
+
+/** Přijme celou URL soutěže z cvf.cz nebo jen číslo soutěže. */
+export function parseCompetitionId(input: string): string | null {
+  const m = input.match(/competitionId=(\d+)/i) ?? input.trim().match(/^(\d+)$/);
+  return m ? m[1] : null;
+}
+
+export async function fetchTeams(competitionId: string): Promise<CvfTeam[]> {
+  return parseTeams(await fetchCvf(`mode=clubs&competitionId=${encodeURIComponent(competitionId)}`));
+}
+
+export async function fetchRoster(competitionId: string, teamId: string): Promise<RosterEntry[]> {
+  const html = await fetchCvf(
+    `mode=clubs&competitionId=${encodeURIComponent(competitionId)}&teamId=${encodeURIComponent(teamId)}`,
+  );
+  return parseRoster(html);
+}
+
+const clean = (s: string | null | undefined) => (s ?? '').replace(/\s+/g, ' ').trim();
+
+export function parseTeams(html: string): CvfTeam[] {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  // Text odkazu má přednost před title/alt loga, které bývá u stejného týmu dřív.
+  const teams = new Map<string, { name: string; weak: boolean }>();
+  doc.querySelectorAll('a[href*="teamId="]').forEach((a) => {
+    const id = a.getAttribute('href')?.match(/teamId=(\d+)/)?.[1];
+    const text = clean(a.textContent);
+    const name = text || clean(a.getAttribute('title')) || clean(a.querySelector('img')?.getAttribute('alt'));
+    const prev = id && teams.get(id);
+    if (id && name && (!prev || (prev.weak && text))) teams.set(id, { name, weak: !text });
+  });
+  return [...teams]
+    .map(([id, { name }]) => ({ id, name }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'cs'));
+}
+
+const LIBERO_RE = /\(L\)|\blibero\b/i;
+const STAFF_RE = /trenér|vedoucí|asistent|lékař|fyzio|masér|statistik/i;
+const NUMBER_RE = /^\d{1,2}$/;
+const NAME_RE = /^[\p{Lu}][\p{L}'’.-]*(?:\s+[\p{Lu}][\p{L}'’.-]*){1,3}$/u;
+
+/** Převede buňky jednoho řádku tabulky na hráče; `strict` vyžaduje jméno ve tvaru „Příjmení Jméno“. */
+function rowToPlayer(cells: string[], strict: boolean): RosterEntry | null {
+  const row = cells.join(' ');
+  if (STAFF_RE.test(row) || /\d+\s*:\s*\d+/.test(row)) return null;
+  const names = cells.map((c) => clean(c.replace(LIBERO_RE, ''))).filter((c) => /\p{L}/u.test(c));
+  const name = names.find((c) => NAME_RE.test(c)) ?? (strict ? undefined : names[0]);
+  if (!name) return null;
+  return { number: cells.find((c) => NUMBER_RE.test(c)) ?? '', name, libero: LIBERO_RE.test(row) || undefined };
+}
+
+function uniqueByName(list: (RosterEntry | null)[]): RosterEntry[] {
+  const map = new Map<string, RosterEntry>();
+  for (const p of list) if (p && !map.has(p.name.toLowerCase())) map.set(p.name.toLowerCase(), p);
+  return [...map.values()];
+}
+
+/**
+ * Vytáhne soupisku ze stránky družstva. Hledá tabulku s hlavičkou „jméno/hráč“,
+ * jinak vezme tabulku s nejvíce řádky ve tvaru jména hráče.
+ */
+export function parseRoster(html: string): RosterEntry[] {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const tables = [...doc.querySelectorAll('table')];
+  const fromTable = (t: HTMLTableElement) =>
+    uniqueByName(
+      [...t.querySelectorAll('tr')].map((tr) =>
+        rowToPlayer([...tr.querySelectorAll('td')].map((td) => clean(td.textContent)), true),
+      ),
+    );
+
+  const withHeader = tables.filter((t) => /jméno|příjmení|hráč/i.test(clean(t.querySelector('thead, tr')?.textContent)));
+  if (withHeader.length) return uniqueByName(withHeader.flatMap(fromTable));
+  return tables.map(fromTable).reduce<RosterEntry[]>((best, cur) => (cur.length > best.length ? cur : best), []);
+}
+
+/** Ručně vložená soupiska: jeden hráč na řádek, např. „7 Novák Jan“, „Novák Jan 7“ nebo řádek zkopírovaný z tabulky. */
+export function parseRosterText(text: string): RosterEntry[] {
+  return uniqueByName(
+    text.split(/\r?\n/).map((line) => {
+      const cells = line.split('\t').map(clean).filter(Boolean);
+      if (cells.length > 1) return rowToPlayer(cells, false);
+      const libero = LIBERO_RE.test(line) || undefined;
+      const s = clean(line.replace(LIBERO_RE, ''));
+      const lead = s.match(/^#?(\d{1,2})[.):\s-]+(.+)$/);
+      const trail = s.match(/^(.+?)\s+#?(\d{1,2})$/);
+      const [number, name] = lead ? [lead[1], lead[2]] : trail ? [trail[2], trail[1]] : ['', s];
+      return /\p{L}/u.test(name) ? { number, name, libero } : null;
+    }),
+  );
+}

@@ -1,0 +1,10 @@
+# Web verze (PWA). Netlify přesměruje /cvf/* na cvf.cz na straně serveru, takže prohlížeč neřeší CORS.
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[[redirects]]
+  from = "/cvf/*"
+  to = "https://www.cvf.cz/:splat"
+  status = 200
+  force = true
