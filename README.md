@@ -24,7 +24,12 @@ Všechny balíčky jsou v `devDependencies`, protože je Vite zabalí do výsled
 
 ## Web / iPad (PWA)
 
-Nasazení na [Netlify](https://www.netlify.com/): propojte repozitář, nastavení se načte z `netlify.toml`. Netlify zároveň funguje jako proxy `/cvf/*` → `www.cvf.cz`, protože prohlížeč nesmí volat cvf.cz napřímo (CORS).
+Nasazení na [Netlify](https://www.netlify.com/) (zdarma):
+
+- **Nejrychleji:** `npm run build` a složku `dist` přetáhněte na [app.netlify.com/drop](https://app.netlify.com/drop).
+- **Trvale:** propojte GitHub repozitář a každá změna se nasadí sama (nastavení je v `netlify.toml`).
+
+Soubor `public/_redirects` zařídí, že Netlify funguje jako proxy `/cvf/*` → `www.cvf.cz`. Prohlížeč totiž nesmí volat cvf.cz napřímo (CORS).
 
 Při jiném hostingu nastavte při buildu proměnnou `VITE_CVF_PROXY` na adresu vlastní proxy.
 
