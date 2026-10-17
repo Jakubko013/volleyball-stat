@@ -1,4 +1,5 @@
 import type { Player } from './types';
+import { toPosition } from './positions';
 
 const CVF_ORIGIN = 'https://www.cvf.cz';
 const COMPETITION_PATH = '/souteze/celostatni-souteze';
@@ -105,10 +106,15 @@ const NAME_RE = /^[\p{Lu}][\p{L}'’.-]*(?:\s+[\p{Lu}][\p{L}'’.-]*){1,3}$/u;
 function rowToPlayer(cells: string[]): RosterEntry | null {
   const row = cells.join(' ');
   if (STAFF_RE.test(row)) return null;
-  const names = cells.map((c) => clean(c.replace(LIBERO_RE, ''))).filter((c) => /\p{L}/u.test(c));
+  const position = cells.map(toPosition).find(Boolean);
+  const names = cells
+    .filter((c) => !toPosition(c))
+    .map((c) => clean(c.replace(LIBERO_RE, '')))
+    .filter((c) => /\p{L}/u.test(c));
   const name = names.find((c) => NAME_RE.test(c)) ?? names[0];
   if (!name) return null;
-  return { number: cells.find((c) => NUMBER_RE.test(c)) ?? '', name, libero: LIBERO_RE.test(row) || undefined };
+  const libero = LIBERO_RE.test(row) || position === 'libero' || undefined;
+  return { number: cells.find((c) => NUMBER_RE.test(c)) ?? '', name, libero, position };
 }
 
 function uniqueByName(list: (RosterEntry | null)[]): RosterEntry[] {
@@ -129,10 +135,12 @@ export function parseRoster(html: string): RosterEntry[] {
       const section = clean(card.closest('.row')?.previousElementSibling?.textContent);
       const name = clean(card.querySelector('h3')?.textContent);
       if (!name || STAFF_RE.test(section) || /funkcionář/i.test(section)) return null;
+      const position = toPosition(card.querySelector('.fw-bold')?.textContent);
       return {
         number: clean(card.querySelector('.playerItem__num')?.textContent),
         name,
-        libero: /libero/i.test(clean(card.querySelector('.fw-bold')?.textContent)) || undefined,
+        libero: position === 'libero' || undefined,
+        position,
       };
     }),
   );

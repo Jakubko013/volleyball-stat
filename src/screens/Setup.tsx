@@ -1,5 +1,6 @@
 import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
-import type { Match, Player } from '../types';
+import type { Match, Player, Position } from '../types';
+import { POSITIONS } from '../positions';
 import {
   fetchCompetitions,
   fetchRoster,
@@ -132,6 +133,7 @@ export function Setup({ onCreate }: { onCreate: (m: Match) => void }) {
       onCourt: [],
       oppPlayers: playing(oppRows),
       oppOnCourt: [],
+      subs: [],
       events: [],
       currentSet: 1,
       finished: false,
@@ -297,7 +299,7 @@ function RosterEditor({ id, title, hint, rows, setRows, onStatus }: RosterEditor
               <th scope="col">Hraje</th>
               <th scope="col">Číslo</th>
               <th scope="col">Jméno</th>
-              <th scope="col">Libero</th>
+              <th scope="col">Post</th>
               <th scope="col">
                 <span className="sr-only">Odebrat</span>
               </th>
@@ -323,12 +325,22 @@ function RosterEditor({ id, title, hint, rows, setRows, onStatus }: RosterEditor
                   <input value={p.name} onChange={(e) => patchRow(p.id, { name: e.target.value })} aria-label="Jméno hráče" />
                 </td>
                 <td>
-                  <input
-                    type="checkbox"
-                    checked={!!p.libero}
-                    onChange={(e) => patchRow(p.id, { libero: e.target.checked || undefined })}
-                    aria-label={`${p.name} je libero`}
-                  />
+                  <select
+                    className="pos-select"
+                    value={p.libero ? 'libero' : (p.position ?? '')}
+                    onChange={(e) => {
+                      const position = (e.target.value || undefined) as Position | undefined;
+                      patchRow(p.id, { position, libero: position === 'libero' || undefined });
+                    }}
+                    aria-label={`Post – ${p.name}`}
+                  >
+                    <option value="">–</option>
+                    {POSITIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
                 </td>
                 <td>
                   <button className="btn btn-ghost btn-sm" onClick={() => setRows((r) => r.filter((x) => x.id !== p.id))} aria-label={`Odebrat ${p.name}`}>

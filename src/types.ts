@@ -1,8 +1,12 @@
+/** Post hráče (cvf.cz u žen uvádí ženský tvar, ukládá se jednotně). */
+export type Position = 'nahrávač' | 'smečař' | 'blokař' | 'univerzál' | 'libero';
+
 export interface Player {
   id: string;
   number: string;
   name: string;
   libero?: boolean;
+  position?: Position;
 }
 
 /** Akce hráče našeho týmu. */
@@ -37,6 +41,14 @@ export interface MatchEvent {
   t: number;
 }
 
+/** Střídání během setu (bez libera); podle pravidel tvoří odcházející a přicházející hráč dvojici. */
+export interface Substitution {
+  set: number;
+  side: Side;
+  out: string;
+  in: string;
+}
+
 export interface Match {
   id: string;
   createdAt: number;
@@ -52,6 +64,7 @@ export interface Match {
   /** Soupiska soupeře – prázdná, když se soupeř nezapisuje. */
   oppPlayers: Player[];
   oppOnCourt: string[];
+  subs: Substitution[];
   events: MatchEvent[];
   currentSet: number;
   finished: boolean;

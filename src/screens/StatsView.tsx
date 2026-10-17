@@ -3,6 +3,7 @@ import type { Match } from '../types';
 import { COLS, GROUPS, buildReport, fmt, isGroupStart, reportFileName, reportTitle, reportToTable, type TeamReport } from '../report';
 import { canShareFiles, downloadBlob, isShareCancel, shareFile } from '../share';
 import { navigate } from '../router';
+import { positionShort } from '../positions';
 
 const isNative = !!window.Capacitor?.isNativePlatform?.();
 // Online náhled (mode demo) běží v sandboxu, který stahování ani sdílení nepovolí.
@@ -142,7 +143,7 @@ function StatsTable({ team, caption, showName }: { team: TeamReport; caption: st
                 <td className="num">{player.number}</td>
                 <th scope="row" className="sticky-col">
                   {player.name || '–'}
-                  {player.libero && ' (L)'}
+                  {positionShort(player) && <span className="muted"> ({positionShort(player)})</span>}
                 </th>
                 {COLS.map((c, i) => (
                   <td key={c.group + c.label} className={isGroupStart(i) ? 'group-start' : undefined}>

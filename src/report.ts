@@ -11,6 +11,7 @@ import {
   type PlayerStats,
   type SetScore,
 } from './stats';
+import { positionLabel } from './positions';
 
 /** Sloupce statistické tabulky – sdílí je obrazovka, export do schránky/CSV i PDF. */
 export interface Col {
@@ -109,11 +110,16 @@ export function reportFileName(r: Report): string {
 /** Tabulka jako text (TSV pro schránku, CSV se středníkem pro Excel); každý tým má vlastní blok. */
 export function reportToTable(r: Report, sep: string): string {
   const esc = (v: string) => (v.includes(sep) || v.includes('"') ? `"${v.replace(/"/g, '""')}"` : v);
-  const head = ['Číslo', 'Hráč', ...COLS.map((c) => `${c.group} ${c.label}`)];
+  const head = ['Číslo', 'Hráč', 'Post', ...COLS.map((c) => `${c.group} ${c.label}`)];
   return r.teams
     .map((t) => {
-      const body = t.rows.map(({ player, stats }) => [player.number, player.name, ...COLS.map((c) => String(c.get(stats) ?? ''))]);
-      const foot = ['', 'Celkem', ...COLS.map((c) => String(c.get(t.total) ?? ''))];
+      const body = t.rows.map(({ player, stats }) => [
+        player.number,
+        player.name,
+        positionLabel(player),
+        ...COLS.map((c) => String(c.get(stats) ?? '')),
+      ]);
+      const foot = ['', 'Celkem', '', ...COLS.map((c) => String(c.get(t.total) ?? ''))];
       return [[t.name], head, ...body, foot].map((row) => row.map(esc).join(sep)).join('\r\n');
     })
     .join('\r\n\r\n');

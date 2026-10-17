@@ -492,6 +492,37 @@ thead .sticky-col {
 .hist-them span {
   color: var(--them);
 }
+.pos {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+.sub-tag {
+  font-size: 0.68rem;
+  font-weight: 600;
+  white-space: nowrap;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text);
+}
+.chip-blocked,
+.player-cell.blocked {
+  opacity: 0.4;
+}
+.bench-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin-bottom: 8px;
+}
+.bench .bench-head h2 {
+  margin: 0;
+}
+.pos-select {
+  min-width: 8.5rem;
+}
 .benches {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));

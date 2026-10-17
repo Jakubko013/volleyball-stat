@@ -21,9 +21,9 @@ function write(key: string, value: unknown): boolean {
   }
 }
 
-/** Starší uložené zápasy nemají soupisku soupeře – doplní se prázdná. */
+/** Starší uložené zápasy nemají soupisku soupeře ani záznam střídání – doplní se prázdné. */
 export const loadMatches = (): Match[] =>
-  read<Match[]>(MATCHES_KEY, []).map((m) => ({ ...m, oppPlayers: m.oppPlayers ?? [], oppOnCourt: m.oppOnCourt ?? [] }));
+  read<Match[]>(MATCHES_KEY, []).map((m) => ({ ...m, oppPlayers: m.oppPlayers ?? [], oppOnCourt: m.oppOnCourt ?? [], subs: m.subs ?? [] }));
 export const saveMatches = (matches: Match[]): boolean => write(MATCHES_KEY, matches);
 
 export interface SavedRoster {
@@ -40,13 +40,13 @@ export function saveRoster(team: string, players: Player[]): void {
   write(ROSTERS_KEY, [{ team, players, savedAt: Date.now() }, ...others].slice(0, 20));
 }
 
-/** cvf.cz často nemá čísla dresů – doplní je z dříve uložené soupisky týmu (podle jména). */
+/** cvf.cz často nemá čísla dresů ani posty – doplní je z dříve uložené soupisky týmu (podle jména). */
 export function withSavedNumbers<T extends Omit<Player, 'id'>>(team: string, roster: T[]): T[] {
   const saved = loadRosters().find((r) => r.team === team)?.players ?? [];
   const known = new Map(saved.map((p) => [p.name.toLowerCase(), p]));
   return roster.map((p) => {
     const s = known.get(p.name.toLowerCase());
-    return s ? { ...p, number: p.number || s.number, libero: p.libero ?? s.libero } : p;
+    return s ? { ...p, number: p.number || s.number, libero: p.libero ?? s.libero, position: p.position ?? s.position } : p;
   });
 }
 

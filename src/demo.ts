@@ -5,25 +5,25 @@ import { isSetOver, setScores } from './stats';
 export function createDemoMatch(): Match {
   const players: Player[] = [
     { id: 'p1', number: '1', name: 'Kučera Jakub', libero: true },
-    { id: 'p3', number: '3', name: 'Horák Martin' },
-    { id: 'p4', number: '4', name: 'Beneš Lukáš' },
-    { id: 'p7', number: '7', name: 'Pokorný Tomáš' },
-    { id: 'p9', number: '9', name: 'Marek David' },
-    { id: 'p11', number: '11', name: 'Fiala Ondřej' },
-    { id: 'p12', number: '12', name: 'Zeman Vojtěch' },
-    { id: 'p15', number: '15', name: 'Růžička Petr' },
-    { id: 'p17', number: '17', name: 'Kolář Adam' },
+    { id: 'p3', number: '3', name: 'Horák Martin', position: 'smečař' },
+    { id: 'p4', number: '4', name: 'Beneš Lukáš', position: 'blokař' },
+    { id: 'p7', number: '7', name: 'Pokorný Tomáš', position: 'univerzál' },
+    { id: 'p9', number: '9', name: 'Marek David', position: 'smečař' },
+    { id: 'p11', number: '11', name: 'Fiala Ondřej', position: 'blokař' },
+    { id: 'p12', number: '12', name: 'Zeman Vojtěch', position: 'nahrávač' },
+    { id: 'p15', number: '15', name: 'Růžička Petr', position: 'smečař' },
+    { id: 'p17', number: '17', name: 'Kolář Adam', position: 'blokař' },
   ];
   const court = ['p3', 'p4', 'p7', 'p9', 'p11', 'p12'];
   const oppPlayers: Player[] = [
     { id: 'o2', number: '2', name: 'Svoboda Jan', libero: true },
-    { id: 'o5', number: '5', name: 'Dvořák Karel' },
-    { id: 'o6', number: '6', name: 'Černý Pavel' },
-    { id: 'o8', number: '8', name: 'Procházka Filip' },
-    { id: 'o10', number: '10', name: 'Kučera Roman' },
-    { id: 'o13', number: '13', name: 'Veselý Michal' },
-    { id: 'o14', number: '14', name: 'Horák Daniel' },
-    { id: 'o18', number: '18', name: 'Němec Jiří' },
+    { id: 'o5', number: '5', name: 'Dvořák Karel', position: 'nahrávač' },
+    { id: 'o6', number: '6', name: 'Černý Pavel', position: 'smečař' },
+    { id: 'o8', number: '8', name: 'Procházka Filip', position: 'blokař' },
+    { id: 'o10', number: '10', name: 'Kučera Roman', position: 'univerzál' },
+    { id: 'o13', number: '13', name: 'Veselý Michal', position: 'smečař' },
+    { id: 'o14', number: '14', name: 'Horák Daniel', position: 'blokař' },
+    { id: 'o18', number: '18', name: 'Němec Jiří', position: 'smečař' },
   ];
   const oppCourt = ['o5', 'o6', 'o8', 'o10', 'o13', 'o14'];
   let seed = 7;
@@ -45,6 +45,7 @@ export function createDemoMatch(): Match {
     onCourt: ['p1', ...court],
     oppPlayers,
     oppOnCourt: ['o2', ...oppCourt],
+    subs: [],
     events: [],
     currentSet: 1,
     finished: false,

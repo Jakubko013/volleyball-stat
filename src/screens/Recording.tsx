@@ -18,6 +18,8 @@ import { uid, withSavedNumbers } from '../storage';
 import { fetchRosterByName, parseQuickPlayers, type RosterEntry } from '../cvf';
 import { navigate } from '../router';
 import { ConfirmButton } from '../components/ConfirmButton';
+import { MAX_SUBS, countsAsSub, setStarted, setSubs, subError, subTag } from '../subs';
+import { positionShort } from '../positions';
 
 const GROUPS = PLAYER_ACTION_KEYS.reduce<{ name: string; span: number }[]>((acc, key) => {
   const g = PLAYER_ACTIONS[key].group;
@@ -50,6 +52,7 @@ type Sub = { side: Side; out?: string; in?: string } | null;
 export function Recording({ match, updateMatch }: { match: Match; updateMatch: MatchUpdater }) {
   const [last, setLast] = useState<MatchEvent | null>(null);
   const [sub, setSub] = useState<Sub>(null);
+  const [subMsg, setSubMsg] = useState<string | null>(null);
   const counts = useMemo(() => countByPlayer(match.events), [match.events]);
   const scores = setScores(match);
   const current = scores[match.currentSet - 1];
@@ -69,29 +72,70 @@ export function Recording({ match, updateMatch }: { match: Match; updateMatch: M
     return { us: split('us'), them: split('them') };
   }, [match]);
 
+  const byId = (id?: string) => [...match.players, ...match.oppPlayers].find((x) => x.id === id);
   const label = (id?: string) => {
-    const p = [...match.players, ...match.oppPlayers].find((x) => x.id === id);
+    const p = byId(id);
     return p ? playerLabel(p) : '';
   };
 
   const update = (fn: (m: Match) => Match) => updateMatch(match.id, fn);
 
+  function clearSub() {
+    setSub(null);
+    setSubMsg(null);
+  }
+
   function setCourt(side: Side, fn: (ids: string[]) => string[]) {
     const key = courtKey(side);
     update((m) => ({ ...m, [key]: fn(m[key]) }));
-    setSub(null);
+    clearSub();
+  }
+
+  /** Vystřídá hráče. Během setu se střídání zapíše a hlídají se pravidla (dvojice tam a zpět, limit). */
+  function substitute(side: Side, out: Player, inn: Player) {
+    const error = subError(match, side, out, inn);
+    if (error) return setSubMsg(error);
+    const key = courtKey(side);
+    const counted = countsAsSub(match, out, inn);
+    update((m) => ({
+      ...m,
+      [key]: m[key].map((x) => (x === out.id ? inn.id : x)),
+      subs: counted ? [...m.subs, { set: m.currentSet, side, out: out.id, in: inn.id }] : m.subs,
+    }));
+    clearSub();
   }
 
   function tapBench(side: Side, p: Player) {
-    if (sub?.side === side && sub.out) return setCourt(side, (ids) => ids.map((x) => (x === sub.out ? p.id : x)));
+    const out = sub?.side === side ? byId(sub.out) : undefined;
+    if (out) return substitute(side, out, p);
     // Dokud není sestava kompletní (6 + libero), hráč z lavičky jde rovnou na hřiště.
     if (p.libero || lineup[side].regulars < 6) return setCourt(side, (ids) => [...ids, p.id]);
+    const error = subError(match, side, undefined, p);
+    if (error) return setSubMsg(error);
     setSub(sub?.in === p.id ? null : { side, in: p.id });
+    setSubMsg(null);
   }
 
   function tapCourt(side: Side, p: Player) {
-    if (sub?.side === side && sub.in) return setCourt(side, (ids) => ids.map((x) => (x === p.id ? sub.in! : x)));
+    const inn = sub?.side === side ? byId(sub.in) : undefined;
+    if (inn) return substitute(side, p, inn);
+    const error = subError(match, side, p);
+    if (error) return setSubMsg(error);
     setSub(sub?.out === p.id ? null : { side, out: p.id });
+    setSubMsg(null);
+  }
+
+  /** Oprava překliknutí: vrátí poslední střídání týmu v setu (hráči se prohodí zpět a střídání se nepočítá). */
+  function undoSub(side: Side) {
+    const key = courtKey(side);
+    update((m) => {
+      let i = m.subs.length - 1;
+      while (i >= 0 && !(m.subs[i].set === m.currentSet && m.subs[i].side === side)) i--;
+      if (i < 0) return m;
+      const last = m.subs[i];
+      return { ...m, [key]: m[key].map((x) => (x === last.in ? last.out : x)), subs: m.subs.filter((_, j) => j !== i) };
+    });
+    clearSub();
   }
 
   /** Přidá hráče během zápasu; s `toCourt` jdou rovnou na hřiště, dokud není sestava kompletní (6 + libero). */
@@ -191,17 +235,27 @@ export function Recording({ match, updateMatch }: { match: Match; updateMatch: M
         </div>
       )}
 
+      {subMsg && (
+        <div className="banner banner-bad" role="alert">
+          {subMsg}
+          <button className="btn" onClick={clearSub}>
+            Rozumím
+          </button>
+        </div>
+      )}
+
       {sub ? (
         <div className="banner banner-sub" role="status">
           {sub.out
             ? `Střídání (${teamName(match, sub.side)}): klepněte na hráče z lavičky, který jde na hřiště místo ${label(sub.out)}.`
             : `Střídání (${teamName(match, sub.side)}): klepněte na jméno hráče na hřišti, kterého ${label(sub.in)} vystřídá.`}
-          {sub.out && (
+          {setStarted(match) && ` Střídání v setu: ${setSubs(match, sub.side).length}/${MAX_SUBS}.`}
+          {sub.out && !setStarted(match) && (
             <button className="btn" onClick={() => setCourt(sub.side, (ids) => ids.filter((x) => x !== sub.out))}>
               Jen poslat na lavičku
             </button>
           )}
-          <button className="btn" onClick={() => setSub(null)}>
+          <button className="btn" onClick={clearSub}>
             Zrušit
           </button>
         </div>
@@ -251,6 +305,8 @@ export function Recording({ match, updateMatch }: { match: Match; updateMatch: M
                   player={p}
                   counts={counts.get(p.id) ?? emptyCounts()}
                   selected={sub?.out === p.id}
+                  tag={subTag(match, side, p.id)}
+                  blocked={sub?.side === side && !!sub.in && !!subError(match, side, p, byId(sub.in))}
                   onSwap={() => tapCourt(side, p)}
                   onRecord={(k) => record(k, p.id, side)}
                 />
@@ -265,18 +321,34 @@ export function Recording({ match, updateMatch }: { match: Match; updateMatch: M
       <div className="benches">
         {sides.map((side) => (
           <section key={side} className="bench" aria-labelledby={`bench-${side}`}>
-            <h2 id={`bench-${side}`}>Lavička – {teamName(match, side)}</h2>
+            <div className="bench-head">
+              <h2 id={`bench-${side}`}>Lavička – {teamName(match, side)}</h2>
+              {setSubs(match, side).length > 0 && (
+                <>
+                  <span className="muted">
+                    střídání {setSubs(match, side).length}/{MAX_SUBS}
+                  </span>
+                  <button className="btn btn-ghost btn-sm" onClick={() => undoSub(side)}>
+                    ↶ Vrátit poslední střídání
+                  </button>
+                </>
+              )}
+            </div>
             <div className="chips">
               {lineup[side].bench.map((p) => (
                 <button
                   key={p.id}
-                  className={`btn btn-sm bench-chip ${sub?.in === p.id ? 'btn-primary' : ''}`}
+                  className={`btn btn-sm bench-chip ${sub?.in === p.id ? 'btn-primary' : ''} ${
+                    sub?.side === side && sub.out && subError(match, side, byId(sub.out), p) ? 'chip-blocked' : ''
+                  }`}
                   onClick={() => tapBench(side, p)}
                   aria-pressed={sub?.in === p.id}
                   aria-label={`${playerLabel(p)}${p.libero ? ' (libero)' : ''} – na hřiště`}
                 >
-                  <strong>{p.number || '–'}</strong> {p.name}
+                  <strong>{p.number || '–'}</strong>
+                  {!p.libero && positionShort(p) && <span className="pos">{positionShort(p)}</span>} {p.name}
                   {p.libero && <span className="badge">L</span>}
+                  {subTag(match, side, p.id) && <span className="sub-tag">{subTag(match, side, p.id)}</span>}
                 </button>
               ))}
               <AddPlayers
@@ -328,18 +400,29 @@ interface PlayerRowProps {
   player: Player;
   counts: ActionCounts;
   selected: boolean;
+  /** Stav ve střídání („za #7“, „už nestřídá“). */
+  tag: string | null;
+  /** Při výběru střídání: s tímto hráčem by střídání porušilo pravidla. */
+  blocked: boolean;
   onSwap: () => void;
   onRecord: (k: (typeof PLAYER_ACTION_KEYS)[number]) => void;
 }
 
-function PlayerRow({ player: p, counts: c, selected, onSwap, onRecord }: PlayerRowProps) {
+function PlayerRow({ player: p, counts: c, selected, tag, blocked, onSwap, onRecord }: PlayerRowProps) {
   return (
     <tr>
       <th scope="row" className="sticky-col" title={p.name}>
-        <button className="player-cell" onClick={onSwap} aria-pressed={selected} aria-label={`Vystřídat ${playerLabel(p)}`}>
+        <button
+          className={`player-cell${blocked ? ' blocked' : ''}`}
+          onClick={onSwap}
+          aria-pressed={selected}
+          aria-label={`Vystřídat ${playerLabel(p)}${tag ? ` (${tag})` : ''}`}
+        >
           <span className="pnum">{p.number || '–'}</span>
+          {!p.libero && positionShort(p) && <span className="pos">{positionShort(p)}</span>}
           <span className="pname">{p.name}</span>
           {p.libero && <span className="badge">L</span>}
+          {tag && <span className="sub-tag">{tag}</span>}
           <span className="swap" aria-hidden="true">
             ⇄
           </span>

@@ -1,4 +1,5 @@
 import { COLS, GROUPS, fmt, reportTitle, setLabel, type Report, type TeamReport } from './report';
+import { positionShort } from './positions';
 
 /** A4 na šířku v bodech PDF. */
 const PAGE = { w: 842, h: 595 };
@@ -131,7 +132,7 @@ function drawPage(r: Report, teams: TeamReport[], page: string): HTMLCanvasEleme
       y += rowH;
     };
     team.rows.forEach(({ player, stats }, i) =>
-      drawRow(player.number, `${player.name || '–'}${player.libero ? ' (L)' : ''}`, stats, i % 2 ? C.zebra : null, 500),
+      drawRow(player.number, `${player.name || '–'}${positionShort(player) ? ` (${positionShort(player)})` : ''}`, stats, i % 2 ? C.zebra : null, 500),
     );
     ctx.fillStyle = C.line;
     ctx.fillRect(x0, y, x1 - x0, 1.5);
