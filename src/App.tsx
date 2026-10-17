@@ -14,7 +14,10 @@ export function App() {
   const [route, setRoute] = useState(getRoute);
   const [matches, setMatches] = useState<Match[]>(() => {
     const stored = loadMatches();
-    return import.meta.env.MODE === 'demo' && !stored.length ? [createDemoMatch()] : stored;
+    if (import.meta.env.MODE !== 'demo') return stored;
+    // Náhled: starší uložená ukázka (bez soupeře) se nahradí aktuální.
+    const kept = stored.filter((m) => !(m.id === 'demo' && !m.oppPlayers.length));
+    return kept.some((m) => m.id === 'demo') ? kept : [createDemoMatch(), ...kept];
   });
   const [saveFailed, setSaveFailed] = useState(false);
 

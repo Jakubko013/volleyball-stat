@@ -1,7 +1,7 @@
 import { useState, type Dispatch, type SetStateAction } from 'react';
 import type { Match, Player } from '../types';
 import { fetchRoster, fetchTeams, parseCompetitionId, parseRosterText, type CvfTeam, type RosterEntry } from '../cvf';
-import { loadRosters, saveRoster, uid } from '../storage';
+import { loadRosters, saveRoster, uid, withSavedNumbers } from '../storage';
 import { navigate } from '../router';
 
 const DEFAULT_COMPETITION = 'https://www.cvf.cz/souteze/celostatni-souteze?mode=clubs&competitionId=18658';
@@ -85,16 +85,7 @@ export function Setup({ onCreate }: { onCreate: (m: Match) => void }) {
     try {
       const roster = await fetchRoster(competitionId, cvfTeam.id);
       if (!roster.length) return applySaved('Soupisku se na cvf.cz nepodařilo najít. ');
-      // cvf.cz často nemá čísla dresů – doplní se z dříve uložené soupisky (podle jména).
-      const known = new Map((saved?.players ?? []).map((p) => [p.name.toLowerCase(), p]));
-      setter(
-        toRows(
-          roster.map((p) => {
-            const s = known.get(p.name.toLowerCase());
-            return s ? { ...p, number: p.number || s.number, libero: p.libero ?? s.libero } : p;
-          }),
-        ),
-      );
+      setter(toRows(withSavedNumbers(name, roster)));
       setStatus({ tone: 'ok', text: `Načteno ${roster.length} hráčů týmu ${name}. Doplňte čísla dresů a odškrtněte, kdo nehraje.` });
     } catch {
       applySaved('Soupisku se nepodařilo stáhnout. ');

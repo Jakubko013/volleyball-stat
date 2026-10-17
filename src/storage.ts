@@ -40,6 +40,16 @@ export function saveRoster(team: string, players: Player[]): void {
   write(ROSTERS_KEY, [{ team, players, savedAt: Date.now() }, ...others].slice(0, 20));
 }
 
+/** cvf.cz často nemá čísla dresů – doplní je z dříve uložené soupisky týmu (podle jména). */
+export function withSavedNumbers<T extends Omit<Player, 'id'>>(team: string, roster: T[]): T[] {
+  const saved = loadRosters().find((r) => r.team === team)?.players ?? [];
+  const known = new Map(saved.map((p) => [p.name.toLowerCase(), p]));
+  return roster.map((p) => {
+    const s = known.get(p.name.toLowerCase());
+    return s ? { ...p, number: p.number || s.number, libero: p.libero ?? s.libero } : p;
+  });
+}
+
 /** Požádá prohlížeč, aby data nemazal při nedostatku místa (hlavně iOS/Safari). */
 export function requestPersistentStorage(): void {
   navigator.storage?.persist?.().catch(() => undefined);

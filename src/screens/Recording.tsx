@@ -14,7 +14,8 @@ import {
   teamPlayers,
   type ActionCounts,
 } from '../stats';
-import { uid } from '../storage';
+import { uid, withSavedNumbers } from '../storage';
+import { fetchRosterByName, parseQuickPlayers, type RosterEntry } from '../cvf';
 import { navigate } from '../router';
 import { ConfirmButton } from '../components/ConfirmButton';
 
@@ -28,9 +29,11 @@ const GROUPS = PLAYER_ACTION_KEYS.reduce<{ name: string; span: number }[]>((acc,
 const byNumber = (a: Player, b: Player) => (Number(a.number) || 99) - (Number(b.number) || 99);
 const courtKey = (side: Side) => (side === 'us' ? 'onCourt' : 'oppOnCourt');
 
+const playerLabel = (p: Player) => [`#${p.number}`, p.name].filter(Boolean).join(' ');
+
 export function describeEvent(e: MatchEvent, match: Match): string {
   const p = [...match.players, ...match.oppPlayers].find((x) => x.id === e.playerId);
-  const who = p ? `${e.team === 'them' ? `${match.opponent} ` : ''}#${p.number} ${p.name} – ` : '';
+  const who = p ? `${e.team === 'them' ? `${match.opponent} ` : ''}${playerLabel(p)} – ` : '';
   return who + actionTitle(e.type);
 }
 
@@ -61,7 +64,7 @@ export function Recording({ match, updateMatch }: { match: Match; updateMatch: M
 
   const label = (id?: string) => {
     const p = [...match.players, ...match.oppPlayers].find((x) => x.id === id);
-    return p ? `#${p.number} ${p.name}` : '';
+    return p ? playerLabel(p) : '';
   };
 
   const update = (fn: (m: Match) => Match) => updateMatch(match.id, fn);
@@ -82,6 +85,24 @@ export function Recording({ match, updateMatch }: { match: Match; updateMatch: M
   function tapCourt(side: Side, p: Player) {
     if (sub?.side === side && sub.in) return setCourt(side, (ids) => ids.map((x) => (x === p.id ? sub.in! : x)));
     setSub(sub?.out === p.id ? null : { side, out: p.id });
+  }
+
+  /** Přidá hráče během zápasu; s `toCourt` jdou rovnou na hřiště, dokud není sestava kompletní (6 + libero). */
+  function addPlayers(side: Side, entries: RosterEntry[], toCourt: boolean) {
+    const key = side === 'us' ? 'players' : 'oppPlayers';
+    update((m) => {
+      const numbers = new Set(m[key].map((p) => p.number).filter(Boolean));
+      const added = entries.filter((p) => !p.number || !numbers.has(p.number)).map((p) => ({ ...p, id: uid() }));
+      const all = [...m[key], ...added];
+      const court = [...m[courtKey(side)]];
+      let regulars = all.filter((p) => court.includes(p.id) && !p.libero).length;
+      for (const p of toCourt ? added : []) {
+        if (!p.libero && regulars >= 6) continue;
+        court.push(p.id);
+        if (!p.libero) regulars++;
+      }
+      return { ...m, [key]: all, [courtKey(side)]: court };
+    });
   }
 
   function record(type: ActionType, playerId?: string, side: Side = 'us') {
@@ -232,29 +253,34 @@ export function Recording({ match, updateMatch }: { match: Match; updateMatch: M
         </table>
       </div>
 
+      {!match.oppPlayers.length && <OpponentSetup match={match} onAdd={(entries, toCourt) => addPlayers('them', entries, toCourt)} />}
+
       <div className="benches">
-        {sides.map(
-          (side) =>
-            lineup[side].bench.length > 0 && (
-              <section key={side} className="bench" aria-labelledby={`bench-${side}`}>
-                <h2 id={`bench-${side}`}>Lavička – {teamName(match, side)}</h2>
-                <div className="chips">
-                  {lineup[side].bench.map((p) => (
-                    <button
-                      key={p.id}
-                      className={`btn btn-sm bench-chip ${sub?.in === p.id ? 'btn-primary' : ''}`}
-                      onClick={() => tapBench(side, p)}
-                      aria-pressed={sub?.in === p.id}
-                      aria-label={`#${p.number} ${p.name}${p.libero ? ' (libero)' : ''} – na hřiště`}
-                    >
-                      <strong>{p.number || '–'}</strong> {p.name}
-                      {p.libero && <span className="badge">L</span>}
-                    </button>
-                  ))}
-                </div>
-              </section>
-            ),
-        )}
+        {sides.map((side) => (
+          <section key={side} className="bench" aria-labelledby={`bench-${side}`}>
+            <h2 id={`bench-${side}`}>Lavička – {teamName(match, side)}</h2>
+            <div className="chips">
+              {lineup[side].bench.map((p) => (
+                <button
+                  key={p.id}
+                  className={`btn btn-sm bench-chip ${sub?.in === p.id ? 'btn-primary' : ''}`}
+                  onClick={() => tapBench(side, p)}
+                  aria-pressed={sub?.in === p.id}
+                  aria-label={`${playerLabel(p)}${p.libero ? ' (libero)' : ''} – na hřiště`}
+                >
+                  <strong>{p.number || '–'}</strong> {p.name}
+                  {p.libero && <span className="badge">L</span>}
+                </button>
+              ))}
+              <AddPlayers
+                label={`Přidat hráče – ${teamName(match, side)}`}
+                placeholder="+ hráč: číslo (jméno)"
+                submitLabel="Přidat"
+                onAdd={(entries) => addPlayers(side, entries, true)}
+              />
+            </div>
+          </section>
+        ))}
       </div>
 
       <div className="actions">
@@ -303,7 +329,7 @@ function PlayerRow({ player: p, counts: c, selected, onSwap, onRecord }: PlayerR
   return (
     <tr>
       <th scope="row" className="sticky-col" title={p.name}>
-        <button className="player-cell" onClick={onSwap} aria-pressed={selected} aria-label={`Vystřídat #${p.number} ${p.name}`}>
+        <button className="player-cell" onClick={onSwap} aria-pressed={selected} aria-label={`Vystřídat ${playerLabel(p)}`}>
           <span className="pnum">{p.number || '–'}</span>
           <span className="pname">{p.name}</span>
           {p.libero && <span className="badge">L</span>}
@@ -317,7 +343,7 @@ function PlayerRow({ player: p, counts: c, selected, onSwap, onRecord }: PlayerR
         if (p.libero && !def.liberoAllowed) return <td key={k} className="cell-off" aria-hidden="true" />;
         return (
           <td key={k}>
-            <button className={`cell tone-${def.tone}`} onClick={() => onRecord(k)} aria-label={`${p.number} ${p.name}: ${def.title} (zatím ${c[k]})`}>
+            <button className={`cell tone-${def.tone}`} onClick={() => onRecord(k)} aria-label={`${[p.number, p.name].filter(Boolean).join(' ')}: ${def.title} (zatím ${c[k]})`}>
               <span className="cnt">{c[k]}</span>
               <span className="lbl">{def.label}</span>
             </button>
@@ -325,5 +351,71 @@ function PlayerRow({ player: p, counts: c, selected, onSwap, onRecord }: PlayerR
         );
       })}
     </tr>
+  );
+}
+
+function AddPlayers({ label, placeholder, submitLabel, onAdd }: { label: string; placeholder: string; submitLabel: string; onAdd: (e: RosterEntry[]) => void }) {
+  const [text, setText] = useState('');
+  const parsed = parseQuickPlayers(text);
+  return (
+    <form
+      className="add-players"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!parsed.length) return;
+        onAdd(parsed);
+        setText('');
+      }}
+    >
+      <input value={text} onChange={(e) => setText(e.target.value)} placeholder={placeholder} aria-label={label} enterKeyHint="done" />
+      <button className="btn btn-sm" disabled={!parsed.length}>
+        {submitLabel}
+      </button>
+    </form>
+  );
+}
+
+/** Zápas bez soupisky soupeře (např. založený ve starší verzi): soupeře jde doplnit kdykoli během zápasu. */
+function OpponentSetup({ match, onAdd }: { match: Match; onAdd: (entries: RosterEntry[], toCourt: boolean) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function loadFromCvf() {
+    setBusy(true);
+    setError(null);
+    try {
+      const roster = await fetchRosterByName(match.competitionId!, match.opponent);
+      if (roster?.length) onAdd(withSavedNumbers(match.opponent, roster), false);
+      else setError(`Tým ${match.opponent} se v soutěži na cvf.cz nepodařilo najít. Zadejte čísla hráčů.`);
+    } catch {
+      setError('Nepodařilo se spojit s cvf.cz. Zadejte čísla hráčů.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="card opp-setup" aria-labelledby="opp-setup">
+      <h2 id="opp-setup">Statistika soupeře – {match.opponent}</h2>
+      <p className="muted">Zadejte čísla hráčů soupeře na hřišti (jméno není nutné, L = libero). Půjdou rovnou na hřiště.</p>
+      <div className="actions">
+        <AddPlayers
+          label="Čísla hráčů soupeře"
+          placeholder="např. 1 3 5 7 9 11 2L"
+          submitLabel="Přidat soupeře"
+          onAdd={(entries) => onAdd(entries, true)}
+        />
+        {match.competitionId && (
+          <button className="btn" onClick={loadFromCvf} disabled={busy}>
+            {busy ? 'Načítám…' : 'Načíst soupisku z cvf.cz'}
+          </button>
+        )}
+      </div>
+      {error && (
+        <p className="banner banner-bad" role="alert">
+          {error}
+        </p>
+      )}
+    </section>
   );
 }

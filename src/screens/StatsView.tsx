@@ -141,7 +141,7 @@ function StatsTable({ team, caption, showName }: { team: TeamReport; caption: st
               <tr key={player.id}>
                 <td className="num">{player.number}</td>
                 <th scope="row" className="sticky-col">
-                  {player.name}
+                  {player.name || '–'}
                   {player.libero && ' (L)'}
                 </th>
                 {COLS.map((c) => (

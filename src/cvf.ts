@@ -40,6 +40,12 @@ export async function fetchTeams(competitionId: string): Promise<CvfTeam[]> {
   return parseTeams(await fetchCvf(`mode=clubs&competitionId=${encodeURIComponent(competitionId)}`));
 }
 
+/** Soupiska týmu podle názvu (např. soupeře během zápasu); null, když tým v soutěži není. */
+export async function fetchRosterByName(competitionId: string, name: string): Promise<RosterEntry[] | null> {
+  const team = (await fetchTeams(competitionId)).find((t) => t.name === name);
+  return team ? fetchRoster(competitionId, team.id) : null;
+}
+
 export async function fetchRoster(competitionId: string, teamId: string): Promise<RosterEntry[]> {
   const html = await fetchCvf(
     `mode=clubs&competitionId=${encodeURIComponent(competitionId)}&teamId=${encodeURIComponent(teamId)}`,
@@ -122,3 +128,26 @@ export function parseRosterText(text: string): RosterEntry[] {
     }),
   );
 }
+
+/**
+ * Rychlé zadání hráčů během zápasu: čísla oddělená mezerou nebo čárkou, jméno je nepovinné,
+ * „L“ u čísla = libero. Např. „1 3 5 7 9 11 2L“ nebo „7 Novák, 12 Dvořák“.
+ */
+export function parseQuickPlayers(text: string): RosterEntry[] {
+  return uniqueByNumber(
+    text
+      .split(/[,;\n]+/)
+      .flatMap((chunk) => (/^[\s\d#lL]+$/.test(chunk) ? chunk.trim().split(/\s+/) : [chunk.trim()]))
+      .map((token) => {
+        const m = token.match(/^#?(\d{1,2})\s*(L\b)?\s*(.*)$/i);
+        return m ? { number: m[1], name: clean(m[3]), libero: m[2] ? true : undefined } : null;
+      }),
+  );
+}
+
+function uniqueByNumber(list: (RosterEntry | null)[]): RosterEntry[] {
+  const map = new Map<string, RosterEntry>();
+  for (const p of list) if (p && !map.has(p.number)) map.set(p.number, p);
+  return [...map.values()];
+}
+

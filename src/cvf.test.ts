@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseCompetitionId, parseRoster, parseRosterText, parseTeams } from './cvf';
+import { parseCompetitionId, parseQuickPlayers, parseRoster, parseRosterText, parseTeams } from './cvf';
 
 describe('cvf', () => {
   it('vytáhne číslo soutěže z URL i čísla', () => {
@@ -27,6 +27,20 @@ describe('cvf', () => {
       { number: '17', name: 'Jan Novák', libero: undefined },
       { number: '', name: 'Petr Dvořák', libero: true },
       { number: '3', name: 'Tomáš Černý', libero: undefined },
+    ]);
+  });
+
+  it('přečte rychle zadaná čísla hráčů', () => {
+    expect(parseQuickPlayers('1 3 5  7 2L')).toEqual([
+      { number: '1', name: '', libero: undefined },
+      { number: '3', name: '', libero: undefined },
+      { number: '5', name: '', libero: undefined },
+      { number: '7', name: '', libero: undefined },
+      { number: '2', name: '', libero: true },
+    ]);
+    expect(parseQuickPlayers('7 Novák Jan, 12, 7 duplicitní')).toEqual([
+      { number: '7', name: 'Novák Jan', libero: undefined },
+      { number: '12', name: '', libero: undefined },
     ]);
   });
 

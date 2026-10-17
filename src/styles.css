@@ -487,6 +487,19 @@ thead .sticky-col {
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 12px;
 }
+.add-players {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+.add-players input {
+  width: 15rem;
+  max-width: 60vw;
+  min-height: 40px;
+}
+.opp-setup p {
+  margin: 0 0 8px;
+}
 .bench h2 {
   font-size: 0.95rem;
   color: var(--muted);
