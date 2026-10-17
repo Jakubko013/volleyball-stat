@@ -2,7 +2,7 @@
 
 Aplikace pro záznam volejbalové statistiky během zápasu. Funguje na tabletu, mobilu i PC a i bez internetu.
 
-- Soupiska se stahuje z [cvf.cz](https://www.cvf.cz/souteze/celostatni-souteze). Jde ji také vložit ručně nebo použít uloženou.
+- Soupiska se stahuje z [cvf.cz](https://www.cvf.cz/souteze/celostatni-souteze): výběr soutěže (Extraliga, 1. a 2. liga muži/ženy) se načítá z cvf.cz pro aktuální sezónu, jiné soutěže jdou zadat odkazem. Soupisku jde také vložit ručně nebo použít uloženou.
 - Zapisuje se jedním klepnutím na tlačítko u hráče:
   - **Podání:** eso, v poli, chyba
   - **Přihrávka:** OK, chyba

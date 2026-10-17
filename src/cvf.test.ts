@@ -1,11 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { parseCompetitionId, parseQuickPlayers, parseRoster, parseRosterText, parseTeams } from './cvf';
+import { parseCompetitionId, parseCompetitions, parseQuickPlayers, parseRoster, parseRosterText, parseTeams } from './cvf';
 
 describe('cvf', () => {
   it('vytáhne číslo soutěže z URL i čísla', () => {
     expect(parseCompetitionId('https://www.cvf.cz/souteze/celostatni-souteze?mode=clubs&competitionId=18658')).toBe('18658');
     expect(parseCompetitionId(' 18658 ')).toBe('18658');
     expect(parseCompetitionId('cvf.cz')).toBeNull();
+  });
+
+  it('najde soutěže dospělých v přehledu soutěží', () => {
+    const row = (id: number, name: string) =>
+      `<tr><td><a href="/souteze/celostatni-souteze?mode=program&amp;competitionId=${id}" class="h4"> ${name}</a></td>` +
+      `<td><a href="?mode=program&amp;competitionId=${id}" class="link">Program</a></td></tr>`;
+    const html = `<table class="programsTable"><tbody>${row(18656, 'ČEZ Extraliga muži')}${row(18661, '2. liga ženy')}${row(18670, 'Extraliga chlapci U18')}</tbody></table>`;
+    expect(parseCompetitions(html)).toEqual([
+      { id: '18656', name: 'ČEZ Extraliga muži' },
+      { id: '18661', name: '2. liga ženy' },
+    ]);
   });
 
   it('najde družstva podle odkazů s teamId', () => {

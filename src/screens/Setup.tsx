@@ -1,10 +1,20 @@
-import { useState, type Dispatch, type SetStateAction } from 'react';
+import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
 import type { Match, Player } from '../types';
-import { fetchRoster, fetchTeams, parseCompetitionId, parseRosterText, type CvfTeam, type RosterEntry } from '../cvf';
+import {
+  fetchCompetitions,
+  fetchRoster,
+  fetchTeams,
+  parseCompetitionId,
+  parseRosterText,
+  type CvfCompetition,
+  type CvfTeam,
+  type RosterEntry,
+} from '../cvf';
 import { loadRosters, saveRoster, uid, withSavedNumbers } from '../storage';
 import { navigate } from '../router';
 
-const DEFAULT_COMPETITION = 'https://www.cvf.cz/souteze/celostatni-souteze?mode=clubs&competitionId=18658';
+/** 1. liga muži 2026/27 – jen výchozí volba, soutěž jde vybrat ze seznamu načteného z cvf.cz. */
+const DEFAULT_COMPETITION = '18658';
 const LAST_COMPETITION_KEY = 'vs:lastCompetition';
 
 type Row = Player & { active: boolean };
@@ -30,6 +40,7 @@ const allNamed = (rows: Row[]) =>
 
 export function Setup({ onCreate }: { onCreate: (m: Match) => void }) {
   const [competition, setCompetition] = useState(readLastCompetition);
+  const [competitions, setCompetitions] = useState<CvfCompetition[]>([]);
   const [teams, setTeams] = useState<CvfTeam[]>([]);
   const [team, setTeam] = useState('');
   const [opponent, setOpponent] = useState('');
@@ -43,15 +54,23 @@ export function Setup({ onCreate }: { onCreate: (m: Match) => void }) {
 
   const competitionId = parseCompetitionId(competition);
 
-  async function loadTeams() {
-    if (!competitionId) return setStatus({ tone: 'bad', text: 'Zadejte odkaz na soutěž z cvf.cz nebo její číslo.' });
+  // Seznam soutěží a družstva naposledy použité soutěže se načtou hned po otevření.
+  useEffect(() => {
+    fetchCompetitions()
+      .then(setCompetitions)
+      .catch(() => undefined);
+    loadTeams();
+  }, []);
+
+  async function loadTeams(id = competitionId) {
+    if (!id) return setStatus({ tone: 'bad', text: 'Zadejte odkaz na soutěž z cvf.cz nebo její číslo.' });
     setBusy(true);
     setStatus(null);
     try {
-      const list = await fetchTeams(competitionId);
+      const list = await fetchTeams(id);
       setTeams(list);
       try {
-        localStorage.setItem(LAST_COMPETITION_KEY, competition);
+        localStorage.setItem(LAST_COMPETITION_KEY, id);
       } catch {
         /* nevadí */
       }
@@ -129,14 +148,41 @@ export function Setup({ onCreate }: { onCreate: (m: Match) => void }) {
       </header>
 
       <section className="card form" aria-labelledby="sec-comp">
-        <h2 id="sec-comp">1. Soutěž na cvf.cz</h2>
-        <label className="field">
-          <span>Odkaz na soutěž nebo číslo soutěže</span>
-          <input value={competition} onChange={(e) => setCompetition(e.target.value)} inputMode="url" />
-        </label>
-        <button className="btn btn-primary" onClick={loadTeams} disabled={busy}>
-          {busy ? 'Načítám…' : 'Načíst družstva'}
-        </button>
+        <h2 id="sec-comp">1. Soutěž</h2>
+        {competitions.length > 0 && (
+          <label className="field">
+            <span>Soutěž na cvf.cz</span>
+            <select
+              value={competitions.some((c) => c.id === competitionId) ? competitionId! : ''}
+              onChange={(e) => {
+                setCompetition(e.target.value);
+                loadTeams(e.target.value);
+              }}
+              disabled={busy}
+            >
+              <option value="" disabled>
+                Vyberte soutěž
+              </option>
+              {competitions.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        <details open={!competitions.length}>
+          <summary>Jiná soutěž (odkaz nebo číslo z cvf.cz)</summary>
+          <div className="form">
+            <label className="field">
+              <span>Odkaz na soutěž nebo její číslo, např. pro mládežnické soutěže</span>
+              <input value={competition} onChange={(e) => setCompetition(e.target.value)} inputMode="url" />
+            </label>
+            <button className="btn btn-primary" onClick={() => loadTeams()} disabled={busy}>
+              {busy ? 'Načítám…' : 'Načíst družstva'}
+            </button>
+          </div>
+        </details>
       </section>
 
       {status && (

@@ -14,13 +14,18 @@ declare global {
 
 export type RosterEntry = Omit<Player, 'id'>;
 
+export interface CvfCompetition {
+  id: string;
+  name: string;
+}
+
 export interface CvfTeam {
   id: string;
   name: string;
 }
 
 async function fetchCvf(query: string): Promise<string> {
-  const path = `${COMPETITION_PATH}?${query}`;
+  const path = query ? `${COMPETITION_PATH}?${query}` : COMPETITION_PATH;
   if (window.electronAPI) return window.electronAPI.fetchText(CVF_ORIGIN + path);
 
   // Web nemůže cvf.cz volat přímo (CORS) – jde přes proxy /cvf (Vite dev server, Netlify) nebo VITE_CVF_PROXY.
@@ -28,6 +33,26 @@ async function fetchCvf(query: string): Promise<string> {
   const res = await fetch(base + path);
   if (!res.ok) throw new Error(`cvf.cz vrátil chybu ${res.status}`);
   return res.text();
+}
+
+/**
+ * Soutěže dospělých aktuální sezóny (Extraliga, 1. a 2. liga muži/ženy).
+ * Čísla soutěží se každou sezónu mění, proto se načítají z cvf.cz a nejsou v kódu napevno.
+ */
+export async function fetchCompetitions(): Promise<CvfCompetition[]> {
+  return parseCompetitions(await fetchCvf(''));
+}
+
+export function parseCompetitions(html: string): CvfCompetition[] {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const list = new Map<string, string>();
+  doc.querySelectorAll('a.h4[href*="competitionId="]').forEach((a) => {
+    const id = a.getAttribute('href')?.match(/competitionId=(\d+)/)?.[1];
+    const name = clean(a.textContent);
+    // Mládežnické soutěže končí kategorií (U18, U20…), dospělé „muži“ / „ženy“.
+    if (id && /(muži|ženy)$/i.test(name) && !list.has(id)) list.set(id, name);
+  });
+  return [...list].map(([id, name]) => ({ id, name }));
 }
 
 /** Přijme celou URL soutěže z cvf.cz nebo jen číslo soutěže. */
