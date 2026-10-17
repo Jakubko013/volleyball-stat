@@ -1,80 +1,27 @@
 import { useMemo, useState } from 'react';
 import type { Match } from '../types';
-import { countByPlayer, emptyCounts, setScores, setsWon, sumCounts, toStats, type PlayerStats } from '../stats';
+import { COLS, GROUPS, buildReport, fmt, reportFileName, reportTitle, reportToTable } from '../report';
+import { canShareFiles, downloadBlob, isShareCancel, shareFile } from '../share';
 import { navigate } from '../router';
 
-interface Col {
-  group: string;
-  label: string;
-  get: (s: PlayerStats) => number | null;
-  pct?: boolean;
-}
-
-const COLS: Col[] = [
-  { group: 'Body', label: 'Celk.', get: (s) => s.points },
-  { group: 'Body', label: 'Chyby', get: (s) => s.errors },
-  { group: 'Body', label: '+/−', get: (s) => s.plusMinus },
-  { group: 'Podání', label: 'Celk.', get: (s) => s.srvTot },
-  { group: 'Podání', label: 'Chyby', get: (s) => s.srvErr },
-  { group: 'Podání', label: 'Esa', get: (s) => s.srvAce },
-  { group: 'Přihrávka', label: 'Celk.', get: (s) => s.rcvTot },
-  { group: 'Přihrávka', label: 'Chyby', get: (s) => s.rcvErr },
-  { group: 'Útok', label: 'Celk.', get: (s) => s.atkTot },
-  { group: 'Útok', label: 'Chyby', get: (s) => s.atkErr },
-  { group: 'Útok', label: 'Zabl.', get: (s) => s.atkBlocked },
-  { group: 'Útok', label: 'Body', get: (s) => s.atkKill },
-  { group: 'Útok', label: 'Úsp.', get: (s) => s.atkPct, pct: true },
-  { group: 'Blok', label: 'Body', get: (s) => s.blk },
-];
-
-const GROUPS = COLS.reduce<{ name: string; span: number }[]>((acc, c) => {
-  if (acc.at(-1)?.name === c.group) acc.at(-1)!.span++;
-  else acc.push({ name: c.group, span: 1 });
-  return acc;
-}, []);
-
-const fmt = (v: number | null, col: Col) => (!v ? '–' : col.pct ? `${v} %` : col.label === '+/−' && v > 0 ? `+${v}` : String(v));
-
-function download(filename: string, text: string, type: string) {
-  const url = URL.createObjectURL(new Blob([text], { type }));
-  const a = Object.assign(document.createElement('a'), { href: url, download: filename });
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
+const isNative = !!window.Capacitor?.isNativePlatform?.();
+// Online náhled (mode demo) běží v sandboxu, který stahování ani sdílení nepovolí.
+const exportable = import.meta.env.MODE !== 'demo';
 
 export function StatsView({ match }: { match: Match }) {
   const [set, setSet] = useState(0);
   const [copyState, setCopyState] = useState<'idle' | 'ok' | 'fail'>('idle');
-  // V Android aplikaci (a v online náhledu) nejde stahovat soubory ani tisknout.
-  const canExport = !window.Capacitor?.isNativePlatform?.() && import.meta.env.MODE !== 'demo';
+  const [pdfState, setPdfState] = useState<'idle' | 'busy' | 'fail'>('idle');
+  const [canShare] = useState(canShareFiles);
 
-  const scores = setScores(match);
-  const won = setsWon(match);
+  const report = useMemo(() => buildReport(match, set), [match, set]);
+  const { rows, total, oppErr, oppPoint, scores, won } = report;
   const playedSets = scores.length;
-
-  const { rows, total, oppErr, oppPoint } = useMemo(() => {
-    const counts = countByPlayer(match.events, set || undefined);
-    const players = [...match.players].sort((a, b) => (Number(a.number) || 99) - (Number(b.number) || 99));
-    const inSet = match.events.filter((e) => !set || e.set === set);
-    return {
-      rows: players.map((p) => ({ player: p, stats: toStats(counts.get(p.id) ?? emptyCounts()) })),
-      total: toStats(sumCounts(counts.values())),
-      oppErr: inSet.filter((e) => e.type === 'oppErr').length,
-      oppPoint: inSet.filter((e) => e.type === 'oppPoint').length,
-    };
-  }, [match, set]);
-
-  function toTable(sep: string): string {
-    const esc = (v: string) => (v.includes(sep) || v.includes('"') ? `"${v.replace(/"/g, '""')}"` : v);
-    const head = ['Číslo', 'Hráč', ...COLS.map((c) => `${c.group} ${c.label}`)];
-    const body = rows.map(({ player, stats }) => [player.number, player.name, ...COLS.map((c) => String(c.get(stats) ?? ''))]);
-    const foot = ['', 'Celkem', ...COLS.map((c) => String(c.get(total) ?? ''))];
-    return [head, ...body, foot].map((r) => r.map(esc).join(sep)).join('\r\n');
-  }
+  const fileName = reportFileName(report);
 
   async function copy() {
     try {
-      await navigator.clipboard.writeText(toTable('\t'));
+      await navigator.clipboard.writeText(reportToTable(report, '\t'));
       setCopyState('ok');
     } catch {
       setCopyState('fail');
@@ -82,7 +29,19 @@ export function StatsView({ match }: { match: Match }) {
     setTimeout(() => setCopyState('idle'), 2500);
   }
 
-  const fileName = `statistika-${match.date}-${match.team}-${match.opponent}`.replace(/[^\p{L}\d-]+/gu, '_');
+  async function exportPdf(action: 'share' | 'download') {
+    setPdfState('busy');
+    try {
+      // PDF modul se načte až při exportu, aby nezdržoval start aplikace.
+      const { reportToPdf } = await import('../pdf');
+      const pdf = await reportToPdf(report);
+      if (action === 'share') await shareFile(pdf, `${fileName}.pdf`, `Statistika ${reportTitle(report)}`);
+      else downloadBlob(pdf, `${fileName}.pdf`);
+      setPdfState('idle');
+    } catch (e) {
+      setPdfState(isShareCancel(e) ? 'idle' : 'fail');
+    }
+  }
 
   return (
     <main className="page page-wide">
@@ -91,21 +50,35 @@ export function StatsView({ match }: { match: Match }) {
           ‹ {match.finished ? 'Zápasy' : 'Zpět k záznamu'}
         </button>
         <div className="actions">
-          <button className="btn" onClick={copy}>
-            {copyState === 'ok' ? 'Zkopírováno ✓' : copyState === 'fail' ? 'Kopírování se nepodařilo' : 'Kopírovat tabulku'}
-          </button>
-          {canExport && (
+          {exportable && canShare && (
+            <button className="btn btn-primary" onClick={() => exportPdf('share')} disabled={pdfState === 'busy'}>
+              {pdfState === 'busy' ? 'Připravuji PDF…' : 'Sdílet PDF'}
+            </button>
+          )}
+          {exportable && !isNative && (
             <>
-              <button className="btn" onClick={() => download(`${fileName}.csv`, '﻿' + toTable(';'), 'text/csv;charset=utf-8')}>
-                Stáhnout CSV
+              <button className={`btn ${canShare ? '' : 'btn-primary'}`} onClick={() => exportPdf('download')} disabled={pdfState === 'busy'}>
+                Stáhnout PDF
               </button>
-              <button className="btn" onClick={() => window.print()}>
-                Tisk / PDF
+              <button
+                className="btn"
+                onClick={() => downloadBlob(new Blob(['\uFEFF' + reportToTable(report, ';')], { type: 'text/csv;charset=utf-8' }), `${fileName}.csv`)}
+              >
+                Stáhnout CSV
               </button>
             </>
           )}
+          <button className="btn" onClick={copy}>
+            {copyState === 'ok' ? 'Zkopírováno ✓' : copyState === 'fail' ? 'Kopírování se nepodařilo' : 'Kopírovat tabulku'}
+          </button>
         </div>
       </header>
+
+      {pdfState === 'fail' && (
+        <p className="banner banner-bad no-print" role="alert">
+          PDF se nepodařilo vytvořit nebo odeslat. Zkuste to prosím znovu.
+        </p>
+      )}
 
       <div className="stats-title">
         <h1>{match.team}</h1>

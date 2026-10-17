@@ -10,7 +10,7 @@ Aplikace pro záznam volejbalové statistiky během zápasu. Funguje na tabletu,
   - **Blok:** bod
   - **Ostatní:** jiná chyba
 - Skóre setu se počítá automaticky. Aplikace pozná konec setu (25 bodů, tie-break 15) a umí vrátit poslední akci.
-- Statistiku jde zobrazit za celý zápas i po setech. Body, chyby, +/−, podání, přihrávka, útok s úspěšností a blok. Export: kopírování do Excelu, CSV, tisk do PDF.
+- Statistiku jde zobrazit za celý zápas i po setech. Body, chyby, +/−, podání, přihrávka, útok s úspěšností a blok. Export: sdílení PDF (WhatsApp, e-mail, Soubory…), stažení PDF a CSV, kopírování do Excelu.
 
 ## Vývoj
 
