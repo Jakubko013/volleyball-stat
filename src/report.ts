@@ -43,6 +43,9 @@ export const GROUPS = COLS.reduce<{ name: string; span: number }[]>((acc, c) => 
   return acc;
 }, []);
 
+/** První sloupec skupiny (Body, Podání, …) – před ním se kreslí dělicí čára. */
+export const isGroupStart = (i: number) => i === 0 || COLS[i].group !== COLS[i - 1].group;
+
 export const fmt = (v: number | null, col: Col) =>
   !v ? '–' : col.pct ? `${v} %` : col.label === '+/−' && v > 0 ? `+${v}` : String(v);
 

@@ -12,6 +12,7 @@
   --bad: #b91c1c;
   --bad-bg: #fee2e2;
   --neutral-bg: #e0e7ff;
+  --divider: #94a3b8;
   --us-bg: #dbeafe;
   --them: #c2410c;
   --them-bg: #ffedd5;
@@ -36,6 +37,7 @@
     --bad: #f87171;
     --bad-bg: #7f1d1d;
     --neutral-bg: #312e81;
+    --divider: #64748b;
     --us-bg: #1e3a8a;
     --them: #fb923c;
     --them-bg: #431407;
@@ -56,6 +58,7 @@
   --bad: #f87171;
   --bad-bg: #7f1d1d;
   --neutral-bg: #312e81;
+  --divider: #64748b;
   --us-bg: #1e3a8a;
   --them: #fb923c;
   --them-bg: #431407;
@@ -417,8 +420,15 @@ summary {
   position: sticky;
   top: 0;
 }
+/* Svislé dělicí čáry mezi skupinami sloupců (Podání, Přihrávka, Útok…) */
+.group-head,
+.group-start {
+  border-left: 2px solid var(--divider);
+}
+.rec-grid td.group-start {
+  padding-left: 5px;
+}
 .group-head {
-  border-left: 2px solid var(--border);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }

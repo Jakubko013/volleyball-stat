@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { Match } from '../types';
-import { COLS, GROUPS, buildReport, fmt, reportFileName, reportTitle, reportToTable, type TeamReport } from '../report';
+import { COLS, GROUPS, buildReport, fmt, isGroupStart, reportFileName, reportTitle, reportToTable, type TeamReport } from '../report';
 import { canShareFiles, downloadBlob, isShareCancel, shareFile } from '../share';
 import { navigate } from '../router';
 
@@ -129,8 +129,8 @@ function StatsTable({ team, caption, showName }: { team: TeamReport; caption: st
               ))}
             </tr>
             <tr>
-              {COLS.map((c) => (
-                <th key={c.group + c.label} scope="col">
+              {COLS.map((c, i) => (
+                <th key={c.group + c.label} scope="col" className={isGroupStart(i) ? 'group-start' : undefined}>
                   {c.label}
                 </th>
               ))}
@@ -144,8 +144,10 @@ function StatsTable({ team, caption, showName }: { team: TeamReport; caption: st
                   {player.name || '–'}
                   {player.libero && ' (L)'}
                 </th>
-                {COLS.map((c) => (
-                  <td key={c.group + c.label}>{fmt(c.get(stats), c)}</td>
+                {COLS.map((c, i) => (
+                  <td key={c.group + c.label} className={isGroupStart(i) ? 'group-start' : undefined}>
+                    {fmt(c.get(stats), c)}
+                  </td>
                 ))}
               </tr>
             ))}
@@ -156,8 +158,10 @@ function StatsTable({ team, caption, showName }: { team: TeamReport; caption: st
               <th scope="row" className="sticky-col">
                 CELKEM
               </th>
-              {COLS.map((c) => (
-                <td key={c.group + c.label}>{fmt(c.get(team.total), c)}</td>
+              {COLS.map((c, i) => (
+                <td key={c.group + c.label} className={isGroupStart(i) ? 'group-start' : undefined}>
+                  {fmt(c.get(team.total), c)}
+                </td>
               ))}
             </tr>
           </tfoot>

@@ -26,6 +26,10 @@ const GROUPS = PLAYER_ACTION_KEYS.reduce<{ name: string; span: number }[]>((acc,
   return acc;
 }, []);
 
+/** První akce každé skupiny (Podání, Přihrávka, …) – před ní se kreslí dělicí čára. */
+const GROUP_START = new Set(PLAYER_ACTION_KEYS.filter((k, i) => i === 0 || PLAYER_ACTIONS[k].group !== PLAYER_ACTIONS[PLAYER_ACTION_KEYS[i - 1]].group));
+const startClass = (k: string) => (GROUP_START.has(k as (typeof PLAYER_ACTION_KEYS)[number]) ? ' group-start' : '');
+
 const byNumber = (a: Player, b: Player) => (Number(a.number) || 99) - (Number(b.number) || 99);
 const courtKey = (side: Side) => (side === 'us' ? 'onCourt' : 'oppOnCourt');
 
@@ -222,7 +226,7 @@ export function Recording({ match, updateMatch }: { match: Match; updateMatch: M
             </tr>
             <tr>
               {PLAYER_ACTION_KEYS.map((k) => (
-                <th key={k} scope="col" className={`tone-${PLAYER_ACTIONS[k].tone}`}>
+                <th key={k} scope="col" className={`tone-${PLAYER_ACTIONS[k].tone}${startClass(k)}`}>
                   {PLAYER_ACTIONS[k].label}
                 </th>
               ))}
@@ -340,9 +344,9 @@ function PlayerRow({ player: p, counts: c, selected, onSwap, onRecord }: PlayerR
       </th>
       {PLAYER_ACTION_KEYS.map((k) => {
         const def = PLAYER_ACTIONS[k];
-        if (p.libero && !def.liberoAllowed) return <td key={k} className="cell-off" aria-hidden="true" />;
+        if (p.libero && !def.liberoAllowed) return <td key={k} className={`cell-off${startClass(k)}`} aria-hidden="true" />;
         return (
-          <td key={k}>
+          <td key={k} className={startClass(k).trim() || undefined}>
             <button className={`cell tone-${def.tone}`} onClick={() => onRecord(k)} aria-label={`${[p.number, p.name].filter(Boolean).join(' ')}: ${def.title} (zatím ${c[k]})`}>
               <span className="cnt">{c[k]}</span>
               <span className="lbl">{def.label}</span>
