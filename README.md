@@ -6,7 +6,7 @@ Aplikace pro záznam volejbalové statistiky během zápasu. Funguje na tabletu,
 - Zapisuje se jedním klepnutím na tlačítko u hráče:
   - **Podání:** eso, v poli, chyba
   - **Přihrávka:** OK, chyba
-  - **Útok:** bod, v poli, chyba, zablokován
+  - **Útok:** bod, chyba, zablokován
   - **Blok:** bod
   - **Ostatní:** jiná chyba
 - Volitelně i statistika soupeře: obě soupisky z cvf.cz, oba týmy v jedné tabulce (na iPadu bez posouvání). Když se zapíšou obě strany jedné výměny (eso + chyba přihrávky, zablokovaný útok + bodový blok), bod se počítá jen jednou.

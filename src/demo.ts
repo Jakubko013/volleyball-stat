@@ -55,9 +55,7 @@ export function createDemoMatch(): Match {
   const rally = () => {
     if (rnd() < 0.5) add('rcv', rnd() < 0.5 ? 'p1' : pick(court));
     if (rnd() < 0.4) add(rnd() < 0.85 ? 'srv' : 'srvErr', pick(court));
-    if (rnd() < 0.3) add('atk', pick(court));
     if (rnd() < 0.4) add('rcv', rnd() < 0.5 ? 'o2' : pick(oppCourt), 'them');
-    if (rnd() < 0.3) add('atk', pick(oppCourt), 'them');
     if (rnd() < 0.55) {
       const t = weighted([['atkKill', 60], ['blk', 14], ['srvAce', 10], ['oppErr', 16]]);
       // Chyby soupeře většinou přiřadit konkrétnímu hráči soupeře

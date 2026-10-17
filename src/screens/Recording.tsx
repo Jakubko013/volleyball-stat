@@ -3,7 +3,7 @@ import type { ActionType, Match, MatchEvent, Player, Side } from '../types';
 import type { MatchUpdater } from '../App';
 import {
   PLAYER_ACTIONS,
-  PLAYER_ACTION_KEYS,
+  RECORD_ACTION_KEYS,
   actionTitle,
   countByPlayer,
   emptyCounts,
@@ -19,7 +19,7 @@ import { fetchRosterByName, parseQuickPlayers, type RosterEntry } from '../cvf';
 import { navigate } from '../router';
 import { ConfirmButton } from '../components/ConfirmButton';
 
-const GROUPS = PLAYER_ACTION_KEYS.reduce<{ name: string; span: number }[]>((acc, key) => {
+const GROUPS = RECORD_ACTION_KEYS.reduce<{ name: string; span: number }[]>((acc, key) => {
   const g = PLAYER_ACTIONS[key].group;
   if (acc.at(-1)?.name === g) acc.at(-1)!.span++;
   else acc.push({ name: g, span: 1 });
@@ -27,8 +27,8 @@ const GROUPS = PLAYER_ACTION_KEYS.reduce<{ name: string; span: number }[]>((acc,
 }, []);
 
 /** První akce každé skupiny (Podání, Přihrávka, …) – před ní se kreslí dělicí čára. */
-const GROUP_START = new Set(PLAYER_ACTION_KEYS.filter((k, i) => i === 0 || PLAYER_ACTIONS[k].group !== PLAYER_ACTIONS[PLAYER_ACTION_KEYS[i - 1]].group));
-const startClass = (k: string) => (GROUP_START.has(k as (typeof PLAYER_ACTION_KEYS)[number]) ? ' group-start' : '');
+const GROUP_START = new Set(RECORD_ACTION_KEYS.filter((k, i) => i === 0 || PLAYER_ACTIONS[k].group !== PLAYER_ACTIONS[RECORD_ACTION_KEYS[i - 1]].group));
+const startClass = (k: string) => (GROUP_START.has(k as (typeof RECORD_ACTION_KEYS)[number]) ? ' group-start' : '');
 
 const byNumber = (a: Player, b: Player) => (Number(a.number) || 99) - (Number(b.number) || 99);
 const courtKey = (side: Side) => (side === 'us' ? 'onCourt' : 'oppOnCourt');
@@ -225,7 +225,7 @@ export function Recording({ match, updateMatch }: { match: Match; updateMatch: M
               ))}
             </tr>
             <tr>
-              {PLAYER_ACTION_KEYS.map((k) => (
+              {RECORD_ACTION_KEYS.map((k) => (
                 <th key={k} scope="col" className={`tone-${PLAYER_ACTIONS[k].tone}${startClass(k)}`}>
                   {PLAYER_ACTIONS[k].label}
                 </th>
@@ -239,7 +239,7 @@ export function Recording({ match, updateMatch }: { match: Match; updateMatch: M
                   <th scope="colgroup" className="sticky-col">
                     {teamName(match, side)}
                   </th>
-                  <td colSpan={PLAYER_ACTION_KEYS.length} />
+                  <td colSpan={RECORD_ACTION_KEYS.length} />
                 </tr>
               )}
               {lineup[side].court.map((p) => (
@@ -326,7 +326,7 @@ interface PlayerRowProps {
   counts: ActionCounts;
   selected: boolean;
   onSwap: () => void;
-  onRecord: (k: (typeof PLAYER_ACTION_KEYS)[number]) => void;
+  onRecord: (k: (typeof RECORD_ACTION_KEYS)[number]) => void;
 }
 
 function PlayerRow({ player: p, counts: c, selected, onSwap, onRecord }: PlayerRowProps) {
@@ -342,7 +342,7 @@ function PlayerRow({ player: p, counts: c, selected, onSwap, onRecord }: PlayerR
           </span>
         </button>
       </th>
-      {PLAYER_ACTION_KEYS.map((k) => {
+      {RECORD_ACTION_KEYS.map((k) => {
         const def = PLAYER_ACTIONS[k];
         if (p.libero && !def.liberoAllowed) return <td key={k} className={`cell-off${startClass(k)}`} aria-hidden="true" />;
         return (

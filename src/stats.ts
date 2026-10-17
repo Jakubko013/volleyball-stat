@@ -27,6 +27,9 @@ export const PLAYER_ACTIONS: Record<PlayerAction, ActionDef> = {
 
 export const PLAYER_ACTION_KEYS = Object.keys(PLAYER_ACTIONS) as PlayerAction[];
 
+/** Akce v tabulce zápisu. „Útok v poli“ se nezapisuje; dříve zapsané se ve statistice dál počítají. */
+export const RECORD_ACTION_KEYS = PLAYER_ACTION_KEYS.filter((k) => k !== 'atk');
+
 export const TEAM_ACTION_TITLES = {
   oppErr: 'Chyba soupeře',
   oppPoint: 'Bod soupeře',
