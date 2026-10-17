@@ -17,8 +17,9 @@ export const PLAYER_ACTIONS: Record<PlayerAction, ActionDef> = {
   srvErr: { group: 'Podání', label: 'Chyba', title: 'Podání – chyba', tone: 'bad', liberoAllowed: false },
   rcv: { group: 'Přihrávka', label: 'OK', title: 'Přihrávka', tone: 'neutral', liberoAllowed: true },
   rcvErr: { group: 'Přihrávka', label: 'Chyba', title: 'Přihrávka – chyba', tone: 'bad', liberoAllowed: true },
+  // „Celkem“ zapíše útok, který neskončil bodem ani chybou; v zápisu ukazuje počet všech útoků hráče.
+  atk: { group: 'Útok', label: 'Celkem', title: 'Útok (bez bodu a chyby)', tone: 'neutral', liberoAllowed: false },
   atkKill: { group: 'Útok', label: 'Bod', title: 'Útok – bod', tone: 'good', liberoAllowed: false },
-  atk: { group: 'Útok', label: 'V poli', title: 'Útok v poli', tone: 'neutral', liberoAllowed: false },
   atkErr: { group: 'Útok', label: 'Chyba', title: 'Útok – chyba', tone: 'bad', liberoAllowed: false },
   atkBlocked: { group: 'Útok', label: 'Zabl.', title: 'Útok – zablokován', tone: 'bad', liberoAllowed: false },
   blk: { group: 'Blok', label: 'Bod', title: 'Blok – bod', tone: 'good', liberoAllowed: false },
@@ -26,9 +27,6 @@ export const PLAYER_ACTIONS: Record<PlayerAction, ActionDef> = {
 };
 
 export const PLAYER_ACTION_KEYS = Object.keys(PLAYER_ACTIONS) as PlayerAction[];
-
-/** Akce v tabulce zápisu. „Útok v poli“ se nezapisuje; dříve zapsané se ve statistice dál počítají. */
-export const RECORD_ACTION_KEYS = PLAYER_ACTION_KEYS.filter((k) => k !== 'atk');
 
 export const TEAM_ACTION_TITLES = {
   oppErr: 'Chyba soupeře',
