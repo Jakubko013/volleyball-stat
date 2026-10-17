@@ -1,6 +1,4 @@
-import type { ActionType, Match, MatchEvent, PlayerAction } from './types';
-
-type Effect = 'us' | 'them' | null;
+import type { ActionType, Match, MatchEvent, Player, PlayerAction, Side } from './types';
 
 export interface ActionDef {
   group: 'Podání' | 'Přihrávka' | 'Útok' | 'Blok' | 'Ostatní';
@@ -34,7 +32,8 @@ export const TEAM_ACTION_TITLES = {
   oppPoint: 'Bod soupeře',
 } as const;
 
-const EFFECT: Record<ActionType, Effect> = {
+/** Komu akce hráče našeho týmu přinese bod (u soupeře obráceně). */
+const EFFECT: Record<ActionType, Side | null> = {
   srvAce: 'us',
   atkKill: 'us',
   blk: 'us',
@@ -50,6 +49,24 @@ const EFFECT: Record<ActionType, Effect> = {
   atk: null,
 };
 
+export const teamPlayers = (m: Pick<Match, 'players' | 'oppPlayers'>, side: Side): Player[] =>
+  side === 'us' ? m.players : m.oppPlayers;
+
+export const teamName = (m: Pick<Match, 'team' | 'opponent'>, side: Side) => (side === 'us' ? m.team : m.opponent);
+
+export function pointFor(e: MatchEvent): Side | null {
+  const effect = EFFECT[e.type];
+  if (!effect || e.team !== 'them') return effect;
+  return effect === 'us' ? 'them' : 'us';
+}
+
+/** Akce druhého týmu popisující stejnou výměnu: eso ↔ chyba přihrávky, zablokovaný útok ↔ bodový blok. */
+const COUNTERPART: Partial<Record<ActionType, ActionType>> = { srvAce: 'rcvErr', rcvErr: 'srvAce', atkBlocked: 'blk', blk: 'atkBlocked' };
+
+/** Když se zapíšou obě strany jedné výměny hned po sobě, bod se počítá jen jednou. */
+const sameRally = (prev: MatchEvent | undefined, e: MatchEvent) =>
+  !!prev?.playerId && !!e.playerId && prev.set === e.set && prev.team !== e.team && COUNTERPART[prev.type] === e.type;
+
 export function actionTitle(type: ActionType): string {
   return type === 'oppErr' || type === 'oppPoint' ? TEAM_ACTION_TITLES[type] : PLAYER_ACTIONS[type].title;
 }
@@ -62,12 +79,11 @@ export interface SetScore {
 /** Skóre všech setů do aktuálního setu včetně. */
 export function setScores(match: Pick<Match, 'events' | 'currentSet'>): SetScore[] {
   const scores: SetScore[] = Array.from({ length: match.currentSet }, () => ({ us: 0, them: 0 }));
-  for (const e of match.events) {
-    const effect = EFFECT[e.type];
+  match.events.forEach((e, i) => {
+    const side = pointFor(e);
     const s = scores[e.set - 1];
-    if (!effect || !s) continue;
-    s[effect]++;
-  }
+    if (side && s && !sameRally(match.events[i - 1], e)) s[side]++;
+  });
   return scores;
 }
 

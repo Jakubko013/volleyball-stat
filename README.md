@@ -9,6 +9,7 @@ Aplikace pro záznam volejbalové statistiky během zápasu. Funguje na tabletu,
   - **Útok:** bod, v poli, chyba, zablokován
   - **Blok:** bod
   - **Ostatní:** jiná chyba
+- Volitelně i statistika soupeře: obě soupisky z cvf.cz, oba týmy v jedné tabulce (na iPadu bez posouvání). Když se zapíšou obě strany jedné výměny (eso + chyba přihrávky, zablokovaný útok + bodový blok), bod se počítá jen jednou.
 - Skóre setu se počítá automaticky. Aplikace pozná konec setu (25 bodů, tie-break 15) a umí vrátit poslední akci.
 - Statistiku jde zobrazit za celý zápas i po setech. Body, chyby, +/−, podání, přihrávka, útok s úspěšností a blok. Export: sdílení PDF (WhatsApp, e-mail, Soubory…), stažení PDF a CSV, kopírování do Excelu.
 

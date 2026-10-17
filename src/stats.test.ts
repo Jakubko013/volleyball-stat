@@ -3,12 +3,27 @@ import type { ActionType, MatchEvent } from './types';
 import { countByPlayer, isSetOver, setScores, setsWon, sumCounts, toStats } from './stats';
 
 let n = 0;
-const ev = (type: ActionType, set = 1, playerId?: string): MatchEvent => ({ id: String(n++), set, type, playerId, t: 0 });
+const ev = (type: ActionType, set = 1, playerId?: string, team?: 'them'): MatchEvent => ({ id: String(n++), set, type, playerId, team, t: 0 });
 const repeat = (count: number, type: ActionType, set = 1, playerId?: string) => Array.from({ length: count }, () => ev(type, set, playerId));
 
 describe('skóre', () => {
   it('připíše body správné straně', () => {
     const events = [ev('srvAce', 1, 'a'), ev('atkKill', 1, 'a'), ev('oppErr'), ev('srvErr', 1, 'a'), ev('atk', 1, 'a'), ev('oppPoint')];
+    expect(setScores({ events, currentSet: 1 })).toEqual([{ us: 3, them: 2 }]);
+  });
+
+  it('akce hráčů soupeře připíše opačně', () => {
+    const events = [ev('atkKill', 1, 'x', 'them'), ev('srvErr', 1, 'x', 'them'), ev('blk', 1, 'x', 'them')];
+    expect(setScores({ events, currentSet: 1 })).toEqual([{ us: 1, them: 2 }]);
+  });
+
+  it('obě strany jedné výměny započítá jen jednou', () => {
+    const events = [
+      ev('srvAce', 1, 'a'), ev('rcvErr', 1, 'x', 'them'), // naše eso + chyba přihrávky soupeře = 1 bod
+      ev('atkBlocked', 1, 'a'), ev('blk', 1, 'x', 'them'), // náš zablokovaný útok + blok soupeře = 1 bod soupeři
+      ev('rcvErr', 1, 'a'), ev('srvAce', 1, 'x', 'them'), // i v opačném pořadí
+      ev('srvAce', 1, 'a'), ev('srvAce', 1, 'b'), // dvě esa po sobě = dvě výměny
+    ];
     expect(setScores({ events, currentSet: 1 })).toEqual([{ us: 3, them: 2 }]);
   });
 

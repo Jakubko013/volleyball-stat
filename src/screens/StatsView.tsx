@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { Match } from '../types';
-import { COLS, GROUPS, buildReport, fmt, reportFileName, reportTitle, reportToTable } from '../report';
+import { COLS, GROUPS, buildReport, fmt, reportFileName, reportTitle, reportToTable, type TeamReport } from '../report';
 import { canShareFiles, downloadBlob, isShareCancel, shareFile } from '../share';
 import { navigate } from '../router';
 
@@ -15,7 +15,7 @@ export function StatsView({ match }: { match: Match }) {
   const [canShare] = useState(canShareFiles);
 
   const report = useMemo(() => buildReport(match, set), [match, set]);
-  const { rows, total, oppErr, oppPoint, scores, won } = report;
+  const { teams, oppErr, oppPoint, scores, won } = report;
   const playedSets = scores.length;
   const fileName = reportFileName(report);
 
@@ -96,11 +96,24 @@ export function StatsView({ match }: { match: Match }) {
         ))}
       </div>
 
+      {teams.map((t) => (
+        <StatsTable key={t.side} team={t} caption={`${t.name} – ${set ? `${set}. set` : 'celý zápas'}`} showName={teams.length > 1} />
+      ))}
+
+      <p className="muted">
+        Body bez určení hráče: {match.team} <strong>{oppErr}</strong> (chyby soupeře) · {match.opponent} <strong>{oppPoint}</strong>
+      </p>
+    </main>
+  );
+}
+
+function StatsTable({ team, caption, showName }: { team: TeamReport; caption: string; showName: boolean }) {
+  return (
+    <section className={`stats-team team-${team.side}`} aria-label={caption}>
+      {showName && <h2 className="stats-team-name">{team.name}</h2>}
       <div className="grid-wrap">
         <table className="stats-table">
-          <caption className="sr-only">
-            Statistika hráčů – {set ? `${set}. set` : 'celý zápas'}
-          </caption>
+          <caption className="sr-only">Statistika hráčů – {caption}</caption>
           <thead>
             <tr>
               <th rowSpan={2} scope="col">
@@ -124,7 +137,7 @@ export function StatsView({ match }: { match: Match }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map(({ player, stats }) => (
+            {team.rows.map(({ player, stats }) => (
               <tr key={player.id}>
                 <td className="num">{player.number}</td>
                 <th scope="row" className="sticky-col">
@@ -144,16 +157,12 @@ export function StatsView({ match }: { match: Match }) {
                 CELKEM
               </th>
               {COLS.map((c) => (
-                <td key={c.group + c.label}>{fmt(c.get(total), c)}</td>
+                <td key={c.group + c.label}>{fmt(c.get(team.total), c)}</td>
               ))}
             </tr>
           </tfoot>
         </table>
       </div>
-
-      <p className="muted">
-        Body z chyb soupeře: <strong>{oppErr}</strong> · Body soupeře bez naší chyby: <strong>{oppPoint}</strong>
-      </p>
-    </main>
+    </section>
   );
 }

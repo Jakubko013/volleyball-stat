@@ -15,6 +15,17 @@ export function createDemoMatch(): Match {
     { id: 'p17', number: '17', name: 'Kolář Adam' },
   ];
   const court = ['p3', 'p4', 'p7', 'p9', 'p11', 'p12'];
+  const oppPlayers: Player[] = [
+    { id: 'o2', number: '2', name: 'Svoboda Jan', libero: true },
+    { id: 'o5', number: '5', name: 'Dvořák Karel' },
+    { id: 'o6', number: '6', name: 'Černý Pavel' },
+    { id: 'o8', number: '8', name: 'Procházka Filip' },
+    { id: 'o10', number: '10', name: 'Kučera Roman' },
+    { id: 'o13', number: '13', name: 'Veselý Michal' },
+    { id: 'o14', number: '14', name: 'Horák Daniel' },
+    { id: 'o18', number: '18', name: 'Němec Jiří' },
+  ];
+  const oppCourt = ['o5', 'o6', 'o8', 'o10', 'o13', 'o14'];
   let seed = 7;
   const rnd = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
   const pick = <T,>(list: T[]) => list[Math.floor(rnd() * list.length)];
@@ -32,23 +43,30 @@ export function createDemoMatch(): Match {
     setsToWin: 3,
     players,
     onCourt: ['p1', ...court],
+    oppPlayers,
+    oppOnCourt: ['o2', ...oppCourt],
     events: [],
     currentSet: 1,
     finished: false,
   };
-  const add = (type: ActionType, playerId?: string) =>
-    match.events.push({ id: String(match.events.length), set: match.currentSet, type, playerId, t: 0 } as MatchEvent);
+  const add = (type: ActionType, playerId?: string, team?: 'them') =>
+    match.events.push({ id: String(match.events.length), set: match.currentSet, type, playerId, team, t: 0 } as MatchEvent);
 
   const rally = () => {
     if (rnd() < 0.5) add('rcv', rnd() < 0.5 ? 'p1' : pick(court));
     if (rnd() < 0.4) add(rnd() < 0.85 ? 'srv' : 'srvErr', pick(court));
     if (rnd() < 0.3) add('atk', pick(court));
+    if (rnd() < 0.4) add('rcv', rnd() < 0.5 ? 'o2' : pick(oppCourt), 'them');
+    if (rnd() < 0.3) add('atk', pick(oppCourt), 'them');
     if (rnd() < 0.55) {
       const t = weighted([['atkKill', 60], ['blk', 14], ['srvAce', 10], ['oppErr', 16]]);
-      add(t, t === 'oppErr' ? undefined : pick(court));
+      // Chyby soupeře většinou přiřadit konkrétnímu hráči soupeře
+      if (t === 'oppErr' && rnd() < 0.7) add(weighted([['atkErr', 50], ['srvErr', 35], ['err', 15]]), pick(oppCourt), 'them');
+      else add(t, t === 'oppErr' ? undefined : pick(court));
     } else {
       const t = weighted([['oppPoint', 45], ['atkErr', 15], ['atkBlocked', 10], ['rcvErr', 15], ['err', 5]]);
-      add(t, t === 'oppPoint' ? undefined : t === 'rcvErr' && rnd() < 0.5 ? 'p1' : pick(court));
+      if (t === 'oppPoint' && rnd() < 0.7) add(weighted([['atkKill', 80], ['srvAce', 20]]), pick(oppCourt), 'them');
+      else add(t, t === 'oppPoint' ? undefined : t === 'rcvErr' && rnd() < 0.5 ? 'p1' : pick(court));
     }
   };
 

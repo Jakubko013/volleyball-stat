@@ -21,7 +21,9 @@ function write(key: string, value: unknown): boolean {
   }
 }
 
-export const loadMatches = (): Match[] => read<Match[]>(MATCHES_KEY, []);
+/** Starší uložené zápasy nemají soupisku soupeře – doplní se prázdná. */
+export const loadMatches = (): Match[] =>
+  read<Match[]>(MATCHES_KEY, []).map((m) => ({ ...m, oppPlayers: m.oppPlayers ?? [], oppOnCourt: m.oppOnCourt ?? [] }));
 export const saveMatches = (matches: Match[]): boolean => write(MATCHES_KEY, matches);
 
 export interface SavedRoster {
