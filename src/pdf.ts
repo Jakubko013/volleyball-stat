@@ -1,4 +1,4 @@
-import { COLS, GROUPS, fmt, reportTitle, setLabel, type Report, type TeamReport } from './report';
+import { COLS, GROUPS, bestValues, fmt, isBest, reportTitle, setLabel, type Report, type TeamReport } from './report';
 import { positionShort } from './positions';
 
 /** A4 na šířku v bodech PDF. */
@@ -18,6 +18,7 @@ const C = {
   zebra: '#f1f5f9',
   total: '#e2e8f0',
   good: '#15803d',
+  bestBg: '#dcfce7',
   bad: '#b91c1c',
 };
 
@@ -114,7 +115,8 @@ function drawPage(r: Report, teams: TeamReport[], page: string): HTMLCanvasEleme
     COLS.forEach((c, i) => text(c.label, colX(i) + colW / 2, y + 11, 'center'));
     y += 22;
 
-    const drawRow = (num: string, name: string, stats: TeamReport['total'], bg: string | null, weight: number) => {
+    const best = bestValues(team.rows);
+    const drawRow = (num: string, name: string, stats: TeamReport['total'], bg: string | null, weight: number, highlight = false) => {
       if (bg) {
         ctx.fillStyle = bg;
         ctx.fillRect(x0, y, x1 - x0, rowH);
@@ -126,13 +128,19 @@ function drawPage(r: Report, teams: TeamReport[], page: string): HTMLCanvasEleme
       text(fit(name, nameW - 12), x0 + numW + 8, cy);
       COLS.forEach((c, i) => {
         const v = c.get(stats);
+        const top = highlight && isBest(best, i, stats);
+        if (top) {
+          ctx.fillStyle = C.bestBg;
+          ctx.fillRect(colX(i) + 3, y + 2, colW - 6, rowH - 4);
+        }
         const color = c.label === '+/−' && v ? (v > 0 ? C.good : C.bad) : C.text;
-        text(fmt(v, c), colX(i) + colW / 2, cy, 'center', color);
+        font(size, top ? 800 : weight);
+        text(fmt(v, c), colX(i) + colW / 2, cy, 'center', top ? C.good : color);
       });
       y += rowH;
     };
     team.rows.forEach(({ player, stats }, i) =>
-      drawRow(player.number, `${player.name || '–'}${positionShort(player) ? ` (${positionShort(player)})` : ''}`, stats, i % 2 ? C.zebra : null, 500),
+      drawRow(player.number, `${player.name || '–'}${positionShort(player) ? ` (${positionShort(player)})` : ''}`, stats, i % 2 ? C.zebra : null, 500, true),
     );
     ctx.fillStyle = C.line;
     ctx.fillRect(x0, y, x1 - x0, 1.5);

@@ -88,6 +88,17 @@ export function setScores(match: Pick<Match, 'events' | 'currentSet'>): SetScore
   return scores;
 }
 
+/** Kdo podává: tým, který vyhrál poslední výměnu aktuálního setu (null před prvním bodem). */
+export function servingSide(match: Pick<Match, 'events' | 'currentSet'>): Side | null {
+  let side: Side | null = null;
+  for (let i = 0; i < match.events.length; i++) {
+    const e = match.events[i];
+    const point = e.set === match.currentSet ? pointFor(e) : null;
+    if (point && !sameRally(match.events[i - 1], e)) side = point;
+  }
+  return side;
+}
+
 export function isSetOver(score: SetScore, setNo: number, setsToWin: number): boolean {
   const target = setNo === setsToWin * 2 - 1 ? 15 : 25;
   return Math.max(score.us, score.them) >= target && Math.abs(score.us - score.them) >= 2;

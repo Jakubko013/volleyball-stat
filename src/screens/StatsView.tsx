@@ -1,6 +1,18 @@
 import { useMemo, useState } from 'react';
 import type { Match } from '../types';
-import { COLS, GROUPS, buildReport, fmt, isGroupStart, reportFileName, reportTitle, reportToTable, type TeamReport } from '../report';
+import {
+  COLS,
+  GROUPS,
+  bestValues,
+  buildReport,
+  fmt,
+  isBest,
+  isGroupStart,
+  reportFileName,
+  reportTitle,
+  reportToTable,
+  type TeamReport,
+} from '../report';
 import { canShareFiles, downloadBlob, isShareCancel, shareFile } from '../share';
 import { navigate } from '../router';
 import { positionShort } from '../positions';
@@ -14,8 +26,11 @@ export function StatsView({ match }: { match: Match }) {
   const [copyState, setCopyState] = useState<'idle' | 'ok' | 'fail'>('idle');
   const [pdfState, setPdfState] = useState<'idle' | 'busy' | 'fail'>('idle');
   const [canShare] = useState(canShareFiles);
+  const [hideEmpty, setHideEmpty] = useState(true);
+  const [sortCol, setSortCol] = useState<number | null>(null);
 
-  const report = useMemo(() => buildReport(match, set), [match, set]);
+  // Řazení a skrytí hráčů platí i pro PDF, CSV a kopírování – export odpovídá tomu, co je vidět.
+  const report = useMemo(() => buildReport(match, set, { hideEmpty, sortCol }), [match, set, hideEmpty, sortCol]);
   const { teams, oppErr, oppPoint, scores, won } = report;
   const playedSets = scores.length;
   const fileName = reportFileName(report);
@@ -89,17 +104,32 @@ export function StatsView({ match }: { match: Match }) {
         </p>
       </div>
 
-      <div className="chips no-print" role="group" aria-label="Zobrazit statistiku">
-        {[0, ...Array.from({ length: playedSets }, (_, i) => i + 1)].map((n) => (
-          <button key={n} className={`btn btn-sm ${set === n ? 'btn-primary' : ''}`} aria-pressed={set === n} onClick={() => setSet(n)}>
-            {n ? `${n}. set` : 'Celý zápas'}
-          </button>
-        ))}
+      <div className="stats-filters no-print">
+        <div className="chips" role="group" aria-label="Zobrazit statistiku">
+          {[0, ...Array.from({ length: playedSets }, (_, i) => i + 1)].map((n) => (
+            <button key={n} className={`btn btn-sm ${set === n ? 'btn-primary' : ''}`} aria-pressed={set === n} onClick={() => setSet(n)}>
+              {n ? `${n}. set` : 'Celý zápas'}
+            </button>
+          ))}
+        </div>
+        <label className="check">
+          <input type="checkbox" checked={hideEmpty} onChange={(e) => setHideEmpty(e.target.checked)} />
+          Jen hráči se zapsanou akcí
+        </label>
       </div>
 
       {teams.map((t) => (
-        <StatsTable key={t.side} team={t} caption={`${t.name} – ${set ? `${set}. set` : 'celý zápas'}`} showName={teams.length > 1} />
+        <StatsTable
+          key={t.side}
+          team={t}
+          caption={`${t.name} – ${set ? `${set}. set` : 'celý zápas'}`}
+          showName={teams.length > 1}
+          sortCol={sortCol}
+          onSort={setSortCol}
+        />
       ))}
+
+      <p className="muted no-print">Klepnutím na název sloupce seřadíte hráče, klepnutím na # zpět podle čísla. Zeleně je nejlepší hodnota v týmu.</p>
 
       <p className="muted">
         Body bez určení hráče: {match.team} <strong>{oppErr}</strong> (chyby soupeře) · {match.opponent} <strong>{oppPoint}</strong>
@@ -108,7 +138,16 @@ export function StatsView({ match }: { match: Match }) {
   );
 }
 
-function StatsTable({ team, caption, showName }: { team: TeamReport; caption: string; showName: boolean }) {
+interface StatsTableProps {
+  team: TeamReport;
+  caption: string;
+  showName: boolean;
+  sortCol: number | null;
+  onSort: (col: number | null) => void;
+}
+
+function StatsTable({ team, caption, showName, sortCol, onSort }: StatsTableProps) {
+  const best = bestValues(team.rows);
   return (
     <section className={`stats-team team-${team.side}`} aria-label={caption}>
       {showName && <h2 className="stats-team-name">{team.name}</h2>}
@@ -117,8 +156,10 @@ function StatsTable({ team, caption, showName }: { team: TeamReport; caption: st
           <caption className="sr-only">Statistika hráčů – {caption}</caption>
           <thead>
             <tr>
-              <th rowSpan={2} scope="col">
-                #
+              <th rowSpan={2} scope="col" aria-sort={sortCol === null ? 'ascending' : undefined}>
+                <button className="th-sort" onClick={() => onSort(null)} aria-label="Seřadit podle čísla dresu">
+                  #
+                </button>
               </th>
               <th rowSpan={2} scope="col" className="sticky-col">
                 Hráč
@@ -131,8 +172,16 @@ function StatsTable({ team, caption, showName }: { team: TeamReport; caption: st
             </tr>
             <tr>
               {COLS.map((c, i) => (
-                <th key={c.group + c.label} scope="col" className={isGroupStart(i) ? 'group-start' : undefined}>
-                  {c.label}
+                <th
+                  key={c.group + c.label}
+                  scope="col"
+                  className={isGroupStart(i) ? 'group-start' : undefined}
+                  aria-sort={sortCol === i ? 'descending' : undefined}
+                >
+                  <button className="th-sort" onClick={() => onSort(sortCol === i ? null : i)} aria-label={`Seřadit podle: ${c.group} ${c.label}`}>
+                    {c.label}
+                    {sortCol === i && ' ▾'}
+                  </button>
                 </th>
               ))}
             </tr>
@@ -146,7 +195,10 @@ function StatsTable({ team, caption, showName }: { team: TeamReport; caption: st
                   {positionShort(player) && <span className="muted"> ({positionShort(player)})</span>}
                 </th>
                 {COLS.map((c, i) => (
-                  <td key={c.group + c.label} className={isGroupStart(i) ? 'group-start' : undefined}>
+                  <td
+                    key={c.group + c.label}
+                    className={[isGroupStart(i) && 'group-start', isBest(best, i, stats) && 'best'].filter(Boolean).join(' ') || undefined}
+                  >
                     {fmt(c.get(stats), c)}
                   </td>
                 ))}

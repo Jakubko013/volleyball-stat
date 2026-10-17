@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { ActionType, Match, MatchEvent, Player, PlayerAction, Side } from '../types';
 import type { MatchUpdater } from '../App';
 import {
@@ -8,6 +8,7 @@ import {
   countByPlayer,
   emptyCounts,
   isSetOver,
+  servingSide,
   setScores,
   setsWon,
   teamName,
@@ -51,6 +52,8 @@ type Sub = { side: Side; out?: string; in?: string } | null;
 
 export function Recording({ match, updateMatch }: { match: Match; updateMatch: MatchUpdater }) {
   const [last, setLast] = useState<MatchEvent | null>(null);
+  /** Potvrzení poslední akce s tlačítkem Vrátit – po chvíli zmizí. */
+  const [toastId, setToastId] = useState<string | null>(null);
   const [sub, setSub] = useState<Sub>(null);
   const [subMsg, setSubMsg] = useState<string | null>(null);
   const counts = useMemo(() => countByPlayer(match.events), [match.events]);
@@ -160,8 +163,16 @@ export function Recording({ match, updateMatch }: { match: Match; updateMatch: M
     const e: MatchEvent = { id: uid(), set: match.currentSet, type, playerId, team: side === 'them' ? 'them' : undefined, t: Date.now() };
     update((m) => ({ ...m, events: [...m.events, e] }));
     setLast(e);
+    setToastId(e.id);
     navigator.vibrate?.(15);
   }
+
+  useEffect(() => {
+    if (!toastId) return;
+    const t = setTimeout(() => setToastId(null), 4000);
+    return () => clearTimeout(t);
+  }, [toastId]);
+  const toast = toastId ? match.events.find((e) => e.id === toastId) : undefined;
 
   function undo() {
     update((m) => ({ ...m, events: m.events.slice(0, -1) }));
@@ -175,7 +186,13 @@ export function Recording({ match, updateMatch }: { match: Match; updateMatch: M
     navigate(`match/${match.id}/stats`);
   }
 
-  const history = match.events.filter((e) => e.set === match.currentSet).slice(-12).reverse();
+  const history = match.events.filter((e) => e.set === match.currentSet).slice(-30).reverse();
+  const serving = servingSide(match);
+  const ball = (
+    <span className="serve" role="img" aria-label="podává">
+      🏐
+    </span>
+  );
   const needLineup = sides.filter((s) => lineup[s].regulars < 6 && lineup[s].bench.length > 0);
 
   return (
@@ -185,13 +202,23 @@ export function Recording({ match, updateMatch }: { match: Match; updateMatch: M
           ‹ Zápasy
         </button>
         <div className="scoreboard" aria-label={`${match.currentSet}. set, skóre ${current.us} : ${current.them}`}>
-          <span className="sb-team">{match.team}</span>
+          <span className="sb-team">
+            {match.team}
+            {serving === 'us' && ball}
+          </span>
           <button className="sb-plus tone-good" onClick={() => record('oppErr')} aria-label={`Bod pro ${match.team} – chyba soupeře`}>
             +1<small>chyba soupeře</small>
           </button>
           <span className="sb-mid">
+            {/* Klíč podle skóre: při změně se číslo znovu vykreslí a krátce zabliká. */}
             <span className="sb-score">
-              {current.us}:{current.them}
+              <span key={`u${current.us}`} className="sb-num">
+                {current.us}
+              </span>
+              :
+              <span key={`t${current.them}`} className="sb-num">
+                {current.them}
+              </span>
             </span>
             <span className="sb-sets">
               {match.currentSet}. set · sety {won.us}:{won.them}
@@ -201,7 +228,10 @@ export function Recording({ match, updateMatch }: { match: Match; updateMatch: M
           <button className="sb-plus tone-bad" onClick={() => record('oppPoint')} aria-label={`Bod pro ${match.opponent}`}>
             +1<small>bod soupeře</small>
           </button>
-          <span className="sb-team">{match.opponent}</span>
+          <span className="sb-team">
+            {serving === 'them' && ball}
+            {match.opponent}
+          </span>
         </div>
         <div className="actions">
           <button className="btn" onClick={undo} disabled={!match.events.length}>
@@ -210,6 +240,21 @@ export function Recording({ match, updateMatch }: { match: Match; updateMatch: M
           <button className="btn" onClick={() => navigate(`match/${match.id}/stats`)}>
             Statistiky
           </button>
+          <details className="menu">
+            <summary className="btn" aria-label="Další volby">
+              ⋯
+            </summary>
+            <div className="menu-pop">
+              {!lastSet && !setOver && (
+                <ConfirmButton onConfirm={nextSet} confirmText={`Ukončit ${match.currentSet}. set? Klepněte znovu`}>
+                  Další set
+                </ConfirmButton>
+              )}
+              <ConfirmButton onConfirm={finish} confirmText="Ukončit zápas? Klepněte znovu">
+                Ukončit zápas
+              </ConfirmButton>
+            </div>
+          </details>
         </div>
       </header>
 
@@ -306,6 +351,7 @@ export function Recording({ match, updateMatch }: { match: Match; updateMatch: M
                   counts={counts.get(p.id) ?? emptyCounts()}
                   selected={sub?.out === p.id}
                   tag={subTag(match, side, p.id)}
+                  tagFull={sub?.side === side}
                   blocked={sub?.side === side && !!sub.in && !!subError(match, side, p, byId(sub.in))}
                   onSwap={() => tapCourt(side, p)}
                   onRecord={(k) => record(k, p.id, side)}
@@ -343,12 +389,12 @@ export function Recording({ match, updateMatch }: { match: Match; updateMatch: M
                   }`}
                   onClick={() => tapBench(side, p)}
                   aria-pressed={sub?.in === p.id}
-                  aria-label={`${playerLabel(p)}${p.libero ? ' (libero)' : ''} – na hřiště`}
+                  aria-label={`${playerLabel(p)}${p.libero ? ' (libero)' : ''}${subTag(match, side, p.id) ? ` (${subTag(match, side, p.id)})` : ''} – na hřiště`}
                 >
                   <strong>{p.number || '–'}</strong>
                   {!p.libero && positionShort(p) && <span className="pos">{positionShort(p)}</span>} {p.name}
                   {p.libero && <span className="badge">L</span>}
-                  {subTag(match, side, p.id) && <span className="sub-tag">{subTag(match, side, p.id)}</span>}
+                  <SubTag tag={subTag(match, side, p.id)} full={sub?.side === side} />
                 </button>
               ))}
               <AddPlayers
@@ -362,20 +408,11 @@ export function Recording({ match, updateMatch }: { match: Match; updateMatch: M
         ))}
       </div>
 
-      <div className="actions">
-        {!lastSet && !setOver && (
-          <ConfirmButton onConfirm={nextSet} confirmText={`Ukončit ${match.currentSet}. set? Klepněte znovu`}>
-            Další set
-          </ConfirmButton>
-        )}
-        <ConfirmButton onConfirm={finish} confirmText="Ukončit zápas? Klepněte znovu">
-          Ukončit zápas
-        </ConfirmButton>
-      </div>
-
       {history.length > 0 && (
-        <section className="card" aria-labelledby="hist">
-          <h2 id="hist">Poslední akce v {match.currentSet}. setu</h2>
+        <details className="card history-box">
+          <summary>
+            Historie {match.currentSet}. setu <span className="muted">({history.length})</span>
+          </summary>
           <ul className="history">
             {history.map((e) => (
               <li key={e.id} className={e.team === 'them' ? 'hist-them' : ''}>
@@ -386,12 +423,27 @@ export function Recording({ match, updateMatch }: { match: Match; updateMatch: M
               </li>
             ))}
           </ul>
-        </section>
+        </details>
       )}
 
-      <div className="last-action" aria-live="polite">
+      <div className="sr-only" aria-live="polite">
         {last ? `Zapsáno: ${describeEvent(last, match)}` : ''}
       </div>
+      {toast && (
+        <div className="toast">
+          <span>{describeEvent(toast, match)}</span>
+          <button
+            className="btn btn-sm"
+            onClick={() => {
+              removeEvent(toast.id);
+              setToastId(null);
+              setLast(null);
+            }}
+          >
+            ↶ Vrátit
+          </button>
+        </div>
+      )}
     </main>
   );
 }
@@ -402,13 +454,15 @@ interface PlayerRowProps {
   selected: boolean;
   /** Stav ve střídání („za #7“, „už nestřídá“). */
   tag: string | null;
+  /** Celý text štítku (při výběru střídání), jinak jen ikonka. */
+  tagFull: boolean;
   /** Při výběru střídání: s tímto hráčem by střídání porušilo pravidla. */
   blocked: boolean;
   onSwap: () => void;
   onRecord: (k: (typeof PLAYER_ACTION_KEYS)[number]) => void;
 }
 
-function PlayerRow({ player: p, counts: c, selected, tag, blocked, onSwap, onRecord }: PlayerRowProps) {
+function PlayerRow({ player: p, counts: c, selected, tag, tagFull, blocked, onSwap, onRecord }: PlayerRowProps) {
   return (
     <tr>
       <th scope="row" className="sticky-col" title={p.name}>
@@ -422,7 +476,7 @@ function PlayerRow({ player: p, counts: c, selected, tag, blocked, onSwap, onRec
           {!p.libero && positionShort(p) && <span className="pos">{positionShort(p)}</span>}
           <span className="pname">{p.name}</span>
           {p.libero && <span className="badge">L</span>}
-          {tag && <span className="sub-tag">{tag}</span>}
+          <SubTag tag={tag} full={tagFull} />
           <span className="swap" aria-hidden="true">
             ⇄
           </span>
@@ -434,12 +488,11 @@ function PlayerRow({ player: p, counts: c, selected, tag, blocked, onSwap, onRec
         return (
           <td key={k} className={startClass(k).trim() || undefined}>
             <button
-              className={`cell tone-${def.tone}`}
+              className={`cell tone-${def.tone}${cellCount(k, c) ? '' : ' zero'}`}
               onClick={() => onRecord(k)}
               aria-label={`${[p.number, p.name].filter(Boolean).join(' ')}: ${def.title} (${k === 'atk' ? 'útoků celkem' : 'zatím'} ${cellCount(k, c)})`}
             >
               <span className="cnt">{cellCount(k, c)}</span>
-              <span className="lbl">{def.label}</span>
             </button>
           </td>
         );
@@ -511,5 +564,17 @@ function OpponentSetup({ match, onAdd }: { match: Match; onAdd: (entries: Roster
         </p>
       )}
     </section>
+  );
+}
+
+/** Stav ve střídání: ikonka (⇆ ve dvojici, ⊘ už nestřídá), celý text jen při výběru střídání. */
+function SubTag({ tag, full }: { tag: string | null; full: boolean }) {
+  if (!tag) return null;
+  return full ? (
+    <span className="sub-tag">{tag}</span>
+  ) : (
+    <span className="sub-icon" title={tag} aria-hidden="true">
+      {tag.startsWith('už') ? '⊘' : '⇆'}
+    </span>
   );
 }

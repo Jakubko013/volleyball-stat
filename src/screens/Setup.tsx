@@ -1,6 +1,6 @@
 import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
 import type { Match, Player, Position } from '../types';
-import { POSITIONS } from '../positions';
+import { POSITIONS, positionLabel } from '../positions';
 import {
   fetchCompetitions,
   fetchRoster,
@@ -275,8 +275,10 @@ interface RosterEditorProps {
 
 function RosterEditor({ id, title, hint, rows, setRows, onStatus }: RosterEditorProps) {
   const [pasteText, setPasteText] = useState('');
+  const [editing, setEditing] = useState<string | null>(null);
   const patchRow = (rowId: string, patch: Partial<Row>) => setRows((r) => r.map((p) => (p.id === rowId ? { ...p, ...patch } : p)));
   const activeCount = rows.filter((r) => r.active && r.name.trim()).length;
+  const missingNumbers = rows.filter((r) => r.active && !r.number).length;
 
   function addFromText() {
     const parsed = parseRosterText(pasteText);
@@ -286,6 +288,12 @@ function RosterEditor({ id, title, hint, rows, setRows, onStatus }: RosterEditor
     onStatus({ tone: 'ok', text: `Přidáno ${parsed.length} hráčů.` });
   }
 
+  function addPlayer() {
+    const row = { id: uid(), number: '', name: '', active: true };
+    setRows((r) => [...r, row]);
+    setEditing(row.id);
+  }
+
   return (
     <section className="card form" aria-labelledby={`sec-${id}`}>
       <h2 id={`sec-${id}`}>
@@ -293,67 +301,87 @@ function RosterEditor({ id, title, hint, rows, setRows, onStatus }: RosterEditor
       </h2>
       {hint && <p className="muted">{hint}</p>}
       {rows.length > 0 && (
-        <table className="roster">
-          <thead>
-            <tr>
-              <th scope="col">Hraje</th>
-              <th scope="col">Číslo</th>
-              <th scope="col">Jméno</th>
-              <th scope="col">Post</th>
-              <th scope="col">
-                <span className="sr-only">Odebrat</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((p) => (
-              <tr key={p.id} className={p.active ? '' : 'inactive'}>
-                <td>
-                  <input type="checkbox" checked={p.active} onChange={(e) => patchRow(p.id, { active: e.target.checked })} aria-label={`${p.name} hraje`} />
-                </td>
-                <td>
-                  <input
-                    className="num-input"
-                    value={p.number}
-                    inputMode="numeric"
-                    maxLength={2}
-                    onChange={(e) => patchRow(p.id, { number: e.target.value.replace(/\D/g, '') })}
-                    aria-label={`Číslo dresu – ${p.name}`}
-                  />
-                </td>
-                <td>
-                  <input value={p.name} onChange={(e) => patchRow(p.id, { name: e.target.value })} aria-label="Jméno hráče" />
-                </td>
-                <td>
-                  <select
-                    className="pos-select"
-                    value={p.libero ? 'libero' : (p.position ?? '')}
-                    onChange={(e) => {
-                      const position = (e.target.value || undefined) as Position | undefined;
-                      patchRow(p.id, { position, libero: position === 'libero' || undefined });
-                    }}
-                    aria-label={`Post – ${p.name}`}
+        <>
+          <div className="actions">
+            <span className="muted">Klepnutím na kartu přepnete, kdo hraje. ✎ upraví číslo, jméno a post.</span>
+            <button className="btn btn-sm" onClick={() => setRows((r) => r.map((p) => ({ ...p, active: true })))}>
+              Vybrat všechny
+            </button>
+            <button className="btn btn-sm" onClick={() => setRows((r) => r.map((p) => ({ ...p, active: false })))}>
+              Zrušit výběr
+            </button>
+          </div>
+          {missingNumbers > 0 && (
+            <p className="hint-warn">
+              {missingNumbers} {missingNumbers === 1 ? 'hráč nemá' : 'hráčů nemá'} číslo dresu – doplňte ho přes ✎.
+            </p>
+          )}
+          <div className="tiles">
+            {rows.map((p) =>
+              editing === p.id ? (
+                <div key={p.id} className="tile tile-edit-open">
+                  <div className="tile-form">
+                    <input
+                      className="num-input"
+                      value={p.number}
+                      inputMode="numeric"
+                      maxLength={2}
+                      placeholder="č."
+                      onChange={(e) => patchRow(p.id, { number: e.target.value.replace(/\D/g, '') })}
+                      aria-label={`Číslo dresu – ${p.name}`}
+                    />
+                    <input value={p.name} placeholder="Jméno" onChange={(e) => patchRow(p.id, { name: e.target.value })} aria-label="Jméno hráče" />
+                    <select
+                      className="pos-select"
+                      value={p.libero ? 'libero' : (p.position ?? '')}
+                      onChange={(e) => {
+                        const position = (e.target.value || undefined) as Position | undefined;
+                        patchRow(p.id, { position, libero: position === 'libero' || undefined });
+                      }}
+                      aria-label={`Post – ${p.name}`}
+                    >
+                      <option value="">Post –</option>
+                      {POSITIONS.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="actions">
+                    <button className="btn btn-sm btn-primary" onClick={() => setEditing(null)}>
+                      Hotovo
+                    </button>
+                    <button className="btn btn-sm btn-ghost" onClick={() => setRows((r) => r.filter((x) => x.id !== p.id))}>
+                      Odebrat
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div key={p.id} className={`tile${p.active ? ' on' : ''}${p.active && !p.number ? ' no-num' : ''}`}>
+                  <button
+                    className="tile-main"
+                    aria-pressed={p.active}
+                    onClick={() => patchRow(p.id, { active: !p.active })}
+                    aria-label={`${p.number ? `#${p.number} ` : ''}${p.name}${positionLabel(p) ? `, ${positionLabel(p)}` : ''} – ${p.active ? 'hraje' : 'nehraje'}`}
                   >
-                    <option value="">–</option>
-                    {POSITIONS.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
-                </td>
-                <td>
-                  <button className="btn btn-ghost btn-sm" onClick={() => setRows((r) => r.filter((x) => x.id !== p.id))} aria-label={`Odebrat ${p.name}`}>
-                    ✕
+                    <span className="tile-num">{p.number || '?'}</span>
+                    <span className="tile-text">
+                      <span className="tile-name">{p.name || 'Bez jména'}</span>
+                      {positionLabel(p) && <span className="tile-pos">{positionLabel(p)}</span>}
+                    </span>
                   </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  <button className="tile-edit" onClick={() => setEditing(p.id)} aria-label={`Upravit ${p.name || 'hráče'}`}>
+                    ✎
+                  </button>
+                </div>
+              ),
+            )}
+          </div>
+        </>
       )}
       <div className="actions">
-        <button className="btn" onClick={() => setRows((r) => [...r, { id: uid(), number: '', name: '', active: true }])}>
+        <button className="btn" onClick={addPlayer}>
           + Přidat hráče
         </button>
       </div>
