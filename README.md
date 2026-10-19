@@ -1,6 +1,6 @@
 # Volejbal Statistika
 
-[![CI](https://github.com/Jakubko013/volejbal-statistika/actions/workflows/ci.yml/badge.svg)](https://github.com/Jakubko013/volejbal-statistika/actions/workflows/ci.yml)
+[![CI](https://github.com/Jakubko013/volleyball-stat/actions/workflows/ci.yml/badge.svg)](https://github.com/Jakubko013/volleyball-stat/actions/workflows/ci.yml)
 
 Aplikace pro zápis volejbalové statistiky přímo během zápasu. Navržená pro iPad u lavičky: jedno klepnutí = jedna akce, funguje i bez internetu a soupisky si sama stáhne z webu Českého volejbalového svazu.
 
