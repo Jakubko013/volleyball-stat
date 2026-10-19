@@ -1,71 +1,95 @@
 # Volejbal Statistika
 
-Aplikace pro záznam volejbalové statistiky během zápasu. Funguje na tabletu, mobilu i PC a i bez internetu.
+[![CI](https://github.com/Jakubko013/volejbal-statistika/actions/workflows/ci.yml/badge.svg)](https://github.com/Jakubko013/volejbal-statistika/actions/workflows/ci.yml)
 
-- Soupiska se stahuje z [cvf.cz](https://www.cvf.cz/souteze/celostatni-souteze): výběr soutěže (Extraliga, 1. a 2. liga muži/ženy) se načítá z cvf.cz pro aktuální sezónu, jiné soutěže jdou zadat odkazem. Soupisku jde také vložit ručně nebo použít uloženou.
-- Zapisuje se jedním klepnutím na tlačítko u hráče:
-  - **Podání:** eso, v poli, chyba
-  - **Přihrávka:** OK, chyba
-  - **Útok:** celkem (útok bez bodu a chyby; buňka ukazuje všechny útoky hráče), bod, chyba, zablokován
-  - **Blok:** bod
-  - **Ostatní:** jiná chyba
-- Posty hráčů (nahrávač, smečař, blokař, univerzál, libero) se načtou z cvf.cz a jdou upravit v soupisce.
-- Střídání podle pravidel: dvojice smí vystřídat jen tam a zpět, nejvýš 8 střídání na tým a set (libero se nepočítá); do první akce setu jde sestavu měnit volně.
-- Volitelně i statistika soupeře: obě soupisky z cvf.cz, oba týmy v jedné tabulce (na iPadu bez posouvání). Když se zapíšou obě strany jedné výměny (eso + chyba přihrávky, zablokovaný útok + bodový blok), bod se počítá jen jednou.
-- Skóre setu se počítá automaticky. Aplikace pozná konec setu (25 bodů, tie-break 15) a umí vrátit poslední akci.
-- Přehledný zápis: nuly nevýrazně, barva akce jen jako proužek, ukazatel podání 🏐, potvrzení akce s tlačítkem Vrátit, historie a další volby schované.
-- Statistiku jde zobrazit za celý zápas i po setech, řadit podle sloupců, skrýt hráče bez akce; nejlepší hodnoty v týmu jsou zvýrazněné (i v PDF). Body, chyby, +/−, podání, přihrávka, útok s úspěšností a blok. Export: sdílení PDF (WhatsApp, e-mail, Soubory…), stažení PDF a CSV, kopírování do Excelu.
+Aplikace pro zápis volejbalové statistiky přímo během zápasu. Navržená pro iPad u lavičky: jedno klepnutí = jedna akce, funguje i bez internetu a soupisky si sama stáhne z webu Českého volejbalového svazu.
 
-## Vývoj
+> **In English:** An offline-first volleyball scouting app for tablets. React + TypeScript PWA that also ships as an Android app (Capacitor) and a Windows app (Electron) from one codebase. Rosters are scraped from the Czech Volleyball Federation website, every action is one tap, and match stats export to PDF/CSV.
+
+| Zápis zápasu | Statistiky |
+| --- | --- |
+| ![Zápis zápasu na iPadu](docs/screenshots/zapis.png) | ![Statistiky po zápase](docs/screenshots/statistiky.png) |
+
+| Soupiska | Export do PDF |
+| --- | --- |
+| ![Výběr hráčů na zápas](docs/screenshots/soupiska.png) | ![Statistika v PDF](docs/screenshots/pdf.png) |
+
+*Snímky používají smyšlená jména z ukázkového zápasu.*
+
+## Co aplikace umí
+
+- **Soupisky z cvf.cz:** seznam soutěží dospělých (Extraliga, 1. a 2. liga muži i ženy) se načítá pro aktuální sezónu, po výběru týmu se stáhne soupiska včetně čísel dresů a postů. Chybějící čísla si aplikace pamatuje pro další zápasy.
+- **Zápis jedním klepnutím:** podání (eso, v poli, chyba), přihrávka, útok (celkem, bod, chyba, zablokován), blok a ostatní chyby, pro náš tým i pro soupeře.
+- **Skóre a sety se počítají samy:** konec setu podle pravidel (25 bodů, tie-break 15, rozdíl 2), ukazatel podání, vrácení poslední akce.
+- **Střídání podle pravidel:** hráč a náhradník tvoří dvojici, smí vystřídat jen tam a zpět, limit 8 střídání na set, libero se nepočítá.
+- **Statistiky:** za zápas i po setech, řazení podle sloupců, zvýraznění nejlepších hodnot, export do PDF (sdílení přes WhatsApp, e-mail…), CSV a schránky.
+- **Offline:** po prvním otevření funguje bez signálu, data zůstávají v zařízení.
+- **Tři platformy z jednoho kódu:** web/PWA (iPad, iPhone), Android, Windows.
+
+## Technologie
+
+- **React 19 + TypeScript** (strict), **Vite**, bez UI knihovny – vlastní CSS s tokeny, světlý i tmavý režim
+- **PWA** (vite-plugin-pwa / Workbox) – instalace na plochu a offline režim
+- **Capacitor** pro Android (nativní HTTP a sdílení souborů), **Electron** pro Windows
+- **Vitest** pro testy logiky, **GitHub Actions** pro testy a buildy Android/Windows
+
+## Zajímavá řešení
+
+- **Zápas jako seznam akcí (event sourcing).** Ukládají se jen jednotlivé akce; skóre, sety, kdo podává i všechny statistiky se z nich počítají. Díky tomu je vracení akcí triviální a data jsou vždy konzistentní – [`src/stats.ts`](src/stats.ts).
+- **Jedna výměna zapsaná z obou stran.** Když se zapíše naše eso i chyba přihrávky soupeře (nebo zablokovaný útok i bodový blok), bod se započítá jen jednou.
+- **Pravidla střídání** jako čisté funkce s testy – [`src/subs.ts`](src/subs.ts).
+- **Stahování z cvf.cz bez vlastního backendu.** Prohlížeč nesmí cvf.cz volat přímo (CORS), takže web jde přes přepis na Netlify (`public/_redirects`), Windows verze přes hlavní proces Electronu s povolenou jedinou doménou a Android přes nativní HTTP Capacitoru – [`src/cvf.ts`](src/cvf.ts), [`electron/main.cjs`](electron/main.cjs).
+- **PDF bez knihovny.** Tabulka se vykreslí do canvasu (česká diakritika bez vkládání fontů) a vloží do ručně sestaveného PDF – [`src/pdf.ts`](src/pdf.ts). Je to malý samostatný modul, který se načte až při exportu.
+- **Rozložení pro iPad:** oba týmy (2 × 7 hráčů) se vejdou bez posouvání i na iPadu mini, na šířku i na výšku.
+- **Přístupnost:** popisky pro čtečky obrazovky, viditelný fokus, dotykové cíle, respektování „omezit pohyb“.
+
+## Spuštění
 
 ```bash
 npm install
 npm run dev      # http://localhost:5173 (stahování z cvf.cz jde přes proxy dev serveru)
-npm test
+npm test         # testy logiky (skóre, statistiky, střídání, parsování cvf.cz, PDF)
+npm run build    # produkční build PWA do dist/
 ```
 
-Všechny balíčky jsou v `devDependencies`, protože je Vite zabalí do výsledného buildu. Windows instalátor tak neobsahuje zbytečné `node_modules`.
-
-## Web / iPad (PWA)
-
-Nasazení na [Netlify](https://www.netlify.com/) (zdarma):
-
-- **Nejrychleji:** `npm run build` a složku `dist` přetáhněte na [app.netlify.com/drop](https://app.netlify.com/drop).
-- **Trvale:** propojte GitHub repozitář a každá změna se nasadí sama (nastavení je v `netlify.toml`).
-
-Soubor `public/_redirects` zařídí, že Netlify funguje jako proxy `/cvf/*` → `www.cvf.cz`. Prohlížeč totiž nesmí volat cvf.cz napřímo (CORS).
-
-Při jiném hostingu nastavte při buildu proměnnou `VITE_CVF_PROXY` na adresu vlastní proxy.
-
-**Instalace na iPad:** otevřete web v Safari → Sdílet → Přidat na plochu. Aplikace se pak spouští přes celou obrazovku a data zůstávají uložená v zařízení.
-
-## Android (Google Play)
-
-Build běží v GitHub Actions (`.github/workflows/android.yml`). Spustí se ručně (Actions → Android → Run workflow) nebo pushnutím tagu `v1.0.0`. Výstupem je testovací APK, a pokud je nastavený podpisový klíč, také podepsaný AAB pro Google Play.
-
-Jednorázové nastavení:
-
-1. Vytvořte podpisový klíč a dobře ho uschovejte. Bez něj už aplikaci na Google Play neaktualizujete.
-   ```bash
-   keytool -genkey -v -keystore release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias statistika
-   base64 -w0 release.jks   # výstup vložte do secretu ANDROID_KEYSTORE_BASE64
-   ```
-2. V GitHubu (Settings → Secrets and variables → Actions) přidejte secrety `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` a `ANDROID_KEY_PASSWORD`.
-3. V [Google Play Console](https://play.google.com/console) (jednorázový poplatek 25 USD) založte aplikaci a nahrajte AAB.
-
-Lokálně (vyžaduje Android Studio): `npm run android:sync && npx cap open android`.
-
-## Windows (.exe)
-
-Build běží v GitHub Actions (`.github/workflows/windows.yml`) a vytvoří instalátor i přenosnou verzi `.exe`. Lokálně na Windows stačí `npm run electron:build`, výsledek je ve složce `release/`.
+Všechny balíčky jsou v `devDependencies`, protože je Vite zabalí do výsledného buildu; Windows instalátor tak neobsahuje zbytečné `node_modules`.
 
 ## Struktura
 
 | Soubor | Účel |
 | --- | --- |
-| `src/stats.ts` | Akce, skóre setů, výpočet statistik |
-| `src/cvf.ts` | Stažení a zpracování družstev a soupisek z cvf.cz |
-| `src/storage.ts` | Ukládání zápasů a soupisek do zařízení |
-| `src/screens/` | Obrazovky: seznam zápasů, nový zápas, záznam, statistika |
-| `electron/` | Windows aplikace (stahování z cvf.cz přes hlavní proces) |
+| `src/stats.ts` | Akce, skóre, konec setu, kdo podává, výpočet statistik |
+| `src/subs.ts` | Pravidla střídání |
+| `src/report.ts` | Tabulka statistik: sloupce, řazení, nejlepší hodnoty, CSV |
+| `src/pdf.ts` | Export do PDF |
+| `src/cvf.ts` | Soutěže, družstva a soupisky z cvf.cz |
+| `src/storage.ts` | Ukládání zápasů a soupisek v zařízení |
+| `src/screens/` | Obrazovky: zápasy, nový zápas, zápis, statistiky |
+| `electron/` | Windows aplikace |
 | `android/` | Android projekt (Capacitor) |
+
+## Nasazení
+
+### Web / iPad (PWA)
+
+[Netlify](https://www.netlify.com/): `npm run build` a složku `dist` přetáhnout na [app.netlify.com/drop](https://app.netlify.com/drop), nebo propojit repozitář (nastavení je v `netlify.toml`). Soubor `public/_redirects` zajistí proxy `/cvf/*` → `www.cvf.cz`. Při jiném hostingu se adresa proxy nastaví proměnnou `VITE_CVF_PROXY`.
+
+Na iPadu: Safari → Sdílet → Přidat na plochu.
+
+### Android (Google Play)
+
+Build běží v GitHub Actions (`.github/workflows/android.yml`) ručně nebo po pushnutí tagu `v*`. Výstupem je testovací APK a s nastaveným podpisovým klíčem i AAB pro Google Play.
+
+1. Vytvořit podpisový klíč a uschovat ho (bez něj už aplikaci nejde aktualizovat):
+   ```bash
+   keytool -genkey -v -keystore release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias statistika
+   base64 -w0 release.jks   # výstup do secretu ANDROID_KEYSTORE_BASE64
+   ```
+2. Přidat secrety `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` a `ANDROID_KEY_PASSWORD`.
+3. V [Google Play Console](https://play.google.com/console) založit aplikaci a nahrát AAB.
+
+Lokálně (Android Studio): `npm run android:sync && npx cap open android`.
+
+### Windows (.exe)
+
+Build běží v GitHub Actions (`.github/workflows/windows.yml`) a vytvoří instalátor i přenosnou verzi. Lokálně na Windows: `npm run electron:build`, výsledek je v `release/`.
