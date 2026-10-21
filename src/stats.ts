@@ -68,6 +68,13 @@ const COUNTERPART: Partial<Record<ActionType, ActionType>> = { srvAce: 'rcvErr',
 const sameRally = (prev: MatchEvent | undefined, e: MatchEvent) =>
   !!prev?.playerId && !!e.playerId && prev.set === e.set && prev.team !== e.team && COUNTERPART[prev.type] === e.type;
 
+/** Pro každou událost: je druhou polovinou dvojice? Už spárovaná událost se s další nespáruje. */
+function duplicateFlags(events: MatchEvent[]): boolean[] {
+  const flags: boolean[] = [];
+  events.forEach((e, i) => flags.push(!flags[i - 1] && sameRally(events[i - 1], e)));
+  return flags;
+}
+
 export function actionTitle(type: ActionType): string {
   return type === 'oppErr' || type === 'oppPoint' ? TEAM_ACTION_TITLES[type] : PLAYER_ACTIONS[type].title;
 }
@@ -80,10 +87,11 @@ export interface SetScore {
 /** Skóre všech setů do aktuálního setu včetně. */
 export function setScores(match: Pick<Match, 'events' | 'currentSet'>): SetScore[] {
   const scores: SetScore[] = Array.from({ length: match.currentSet }, () => ({ us: 0, them: 0 }));
+  const dups = duplicateFlags(match.events);
   match.events.forEach((e, i) => {
     const side = pointFor(e);
     const s = scores[e.set - 1];
-    if (side && s && !sameRally(match.events[i - 1], e)) s[side]++;
+    if (side && s && !dups[i]) s[side]++;
   });
   return scores;
 }
@@ -91,10 +99,11 @@ export function setScores(match: Pick<Match, 'events' | 'currentSet'>): SetScore
 /** Kdo podává: tým, který vyhrál poslední výměnu aktuálního setu (null před prvním bodem). */
 export function servingSide(match: Pick<Match, 'events' | 'currentSet'>): Side | null {
   let side: Side | null = null;
+  const dups = duplicateFlags(match.events);
   for (let i = 0; i < match.events.length; i++) {
     const e = match.events[i];
     const point = e.set === match.currentSet ? pointFor(e) : null;
-    if (point && !sameRally(match.events[i - 1], e)) side = point;
+    if (point && !dups[i]) side = point;
   }
   return side;
 }
@@ -104,11 +113,12 @@ export function isSetOver(score: SetScore, setNo: number, setsToWin: number): bo
   return Math.max(score.us, score.them) >= target && Math.abs(score.us - score.them) >= 2;
 }
 
-/** Vyhrané sety (počítají se jen dohrané sety). */
+/** Vyhrané sety: uzavřené sety (před aktuálním) podle vedoucího, aktuální jen když je dohraný. */
 export function setsWon(match: Pick<Match, 'events' | 'currentSet' | 'setsToWin'>): SetScore {
   const won = { us: 0, them: 0 };
   setScores(match).forEach((s, i) => {
-    if (isSetOver(s, i + 1, match.setsToWin)) won[s.us > s.them ? 'us' : 'them']++;
+    const closed = i + 1 < match.currentSet ? s.us !== s.them : isSetOver(s, i + 1, match.setsToWin);
+    if (closed) won[s.us > s.them ? 'us' : 'them']++;
   });
   return won;
 }

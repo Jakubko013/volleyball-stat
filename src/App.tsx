@@ -50,7 +50,7 @@ export function App() {
     );
   } else if (screen === 'match' && match) {
     content =
-      sub === 'stats' ? <StatsView match={match} /> : <Recording match={match} updateMatch={updateMatch} />;
+      sub === 'stats' || match.finished ? <StatsView match={match} /> : <Recording match={match} updateMatch={updateMatch} />;
   } else {
     content = <Home matches={matches} onDelete={(mid) => setMatches((list) => list.filter((m) => m.id !== mid))} />;
   }

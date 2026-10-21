@@ -175,17 +175,23 @@ export function Recording({ match, updateMatch }: { match: Match; updateMatch: M
   const toast = toastId ? match.events.find((e) => e.id === toastId) : undefined;
 
   function undo() {
-    update((m) => ({ ...m, events: m.events.slice(0, -1) }));
+    update((m) => {
+      const i = m.events.map((e) => e.set).lastIndexOf(m.currentSet);
+      return i < 0 ? m : { ...m, events: m.events.filter((_, j) => j !== i) };
+    });
     setLast(null);
   }
 
   const removeEvent = (id: string) => update((m) => ({ ...m, events: m.events.filter((e) => e.id !== id) }));
+  const prevSet = () => update((m) => ({ ...m, currentSet: m.currentSet - 1 }));
   const nextSet = () => update((m) => ({ ...m, currentSet: m.currentSet + 1 }));
   function finish() {
     update((m) => ({ ...m, finished: true }));
     navigate(`match/${match.id}/stats`);
   }
 
+  const setEmpty = !match.events.some((e) => e.set === match.currentSet);
+  const locked = setOver || matchOver;
   const history = match.events.filter((e) => e.set === match.currentSet).slice(-30).reverse();
   const serving = servingSide(match);
   const ball = (
@@ -206,7 +212,7 @@ export function Recording({ match, updateMatch }: { match: Match; updateMatch: M
             {match.team}
             {serving === 'us' && ball}
           </span>
-          <button className="sb-plus tone-good" onClick={() => record('oppErr')} aria-label={`Bod pro ${match.team} – chyba soupeře`}>
+          <button className="sb-plus tone-good" disabled={locked} onClick={() => record('oppErr')} aria-label={`Bod pro ${match.team} – chyba soupeře`}>
             +1<small>chyba soupeře</small>
           </button>
           <span className="sb-mid">
@@ -225,7 +231,7 @@ export function Recording({ match, updateMatch }: { match: Match; updateMatch: M
               {scores.length > 1 && ` (${scores.slice(0, -1).map((s) => `${s.us}:${s.them}`).join(', ')})`}
             </span>
           </span>
-          <button className="sb-plus tone-bad" onClick={() => record('oppPoint')} aria-label={`Bod pro ${match.opponent}`}>
+          <button className="sb-plus tone-bad" disabled={locked} onClick={() => record('oppPoint')} aria-label={`Bod pro ${match.opponent}`}>
             +1<small>bod soupeře</small>
           </button>
           <span className="sb-team">
@@ -234,7 +240,7 @@ export function Recording({ match, updateMatch }: { match: Match; updateMatch: M
           </span>
         </div>
         <div className="actions">
-          <button className="btn" onClick={undo} disabled={!match.events.length}>
+          <button className="btn" onClick={undo} disabled={setEmpty}>
             ↶ Zpět
           </button>
           <button className="btn" onClick={() => navigate(`match/${match.id}/stats`)}>
@@ -245,6 +251,11 @@ export function Recording({ match, updateMatch }: { match: Match; updateMatch: M
               ⋯
             </summary>
             <div className="menu-pop">
+              {match.currentSet > 1 && setEmpty && (
+                <ConfirmButton onConfirm={prevSet} confirmText={`Zpět do ${match.currentSet - 1}. setu? Klepněte znovu`}>
+                  {`Zpět do ${match.currentSet - 1}. setu`}
+                </ConfirmButton>
+              )}
               {!lastSet && !setOver && (
                 <ConfirmButton onConfirm={nextSet} confirmText={`Ukončit ${match.currentSet}. set? Klepněte znovu`}>
                   Další set
@@ -349,6 +360,7 @@ export function Recording({ match, updateMatch }: { match: Match; updateMatch: M
                   key={p.id}
                   player={p}
                   counts={counts.get(p.id) ?? emptyCounts()}
+                  disabled={locked}
                   selected={sub?.out === p.id}
                   tag={subTag(match, side, p.id)}
                   tagFull={sub?.side === side}
@@ -452,6 +464,7 @@ interface PlayerRowProps {
   player: Player;
   counts: ActionCounts;
   selected: boolean;
+  disabled: boolean;
   /** Stav ve střídání („za #7“, „už nestřídá“). */
   tag: string | null;
   /** Celý text štítku (při výběru střídání), jinak jen ikonka. */
@@ -462,7 +475,7 @@ interface PlayerRowProps {
   onRecord: (k: (typeof PLAYER_ACTION_KEYS)[number]) => void;
 }
 
-function PlayerRow({ player: p, counts: c, selected, tag, tagFull, blocked, onSwap, onRecord }: PlayerRowProps) {
+function PlayerRow({ player: p, counts: c, selected, disabled, tag, tagFull, blocked, onSwap, onRecord }: PlayerRowProps) {
   return (
     <tr>
       <th scope="row" className="sticky-col" title={p.name}>
@@ -489,6 +502,7 @@ function PlayerRow({ player: p, counts: c, selected, tag, tagFull, blocked, onSw
           <td key={k} className={startClass(k).trim() || undefined}>
             <button
               className={`cell tone-${def.tone}${cellCount(k, c) ? '' : ' zero'}`}
+              disabled={disabled}
               onClick={() => onRecord(k)}
               aria-label={`${[p.number, p.name].filter(Boolean).join(' ')}: ${def.title} (${k === 'atk' ? 'útoků celkem' : 'zatím'} ${cellCount(k, c)})`}
             >
