@@ -1,7 +1,7 @@
 {
   "name": "volejbal-statistika",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Volejbalová statistika zápasu – záznam podání, přihrávky, útoku a bloku po hráčích.",
   "author": "Volejbal Statistika",
   "type": "module",
