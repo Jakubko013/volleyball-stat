@@ -24,13 +24,13 @@ Aplikace pro zápis volejbalové statistiky přímo během zápasu. Navržená p
 - **Střídání podle pravidel:** hráč a náhradník tvoří dvojici, smí vystřídat jen tam a zpět, limit 8 střídání na set, libero se nepočítá.
 - **Statistiky:** za zápas i po setech, řazení podle sloupců, zvýraznění nejlepších hodnot, export do PDF (sdílení přes WhatsApp, e-mail…), CSV a schránky.
 - **Offline:** po prvním otevření funguje bez signálu, data zůstávají v zařízení.
-- **Tři platformy z jednoho kódu:** web/PWA (iPad, iPhone), Android, Windows.
+- **Čtyři platformy z jednoho kódu:** web/PWA, iOS/iPadOS, Android a Windows.
 
 ## Technologie
 
 - **React 19 + TypeScript** (strict), **Vite**, bez UI knihovny – vlastní CSS s tokeny, světlý i tmavý režim
 - **PWA** (vite-plugin-pwa / Workbox) – instalace na plochu a offline režim
-- **Capacitor** pro Android (nativní HTTP a sdílení souborů), **Electron** pro Windows
+- **Capacitor** pro iOS a Android (nativní HTTP a sdílení souborů), **Electron** pro Windows
 - **Vitest** pro testy logiky, **GitHub Actions** pro testy a buildy Android/Windows
 
 ## Zajímavá řešení
@@ -66,6 +66,7 @@ Všechny balíčky jsou v `devDependencies`, protože je Vite zabalí do výsled
 | `src/storage.ts` | Ukládání zápasů a soupisek v zařízení |
 | `src/screens/` | Obrazovky: zápasy, nový zápas, zápis, statistiky |
 | `electron/` | Windows aplikace |
+| `ios/` | iOS/iPadOS projekt pro Xcode (Capacitor) |
 | `android/` | Android projekt (Capacitor) |
 
 ## Nasazení
@@ -89,6 +90,20 @@ Build běží v GitHub Actions (`.github/workflows/android.yml`) ručně nebo po
 3. V [Google Play Console](https://play.google.com/console) založit aplikaci a nahrát AAB.
 
 Lokálně (Android Studio): `npm run android:sync && npx cap open android`.
+
+### iOS / iPadOS (App Store)
+
+Xcode projekt je ve složce `ios/` (Capacitor, Swift Package Manager – bez CocoaPods). Na Macu s Xcode:
+
+```bash
+npm ci
+npm run build:native && npx cap sync ios
+npx cap open ios          # otevře projekt v Xcode
+```
+
+V Xcode vyberte v *Signing & Capabilities* svůj tým (stačí i bezplatné Apple ID pro spuštění na vlastním iPadu) a spusťte na simulátoru nebo připojeném zařízení. Pro TestFlight a App Store je potřeba Apple Developer Program.
+
+GitHub Actions (`.github/workflows/ios.yml`) na Macu ověří, že se projekt sestaví (build pro simulátor bez podpisu).
 
 ### Windows (.exe)
 
